@@ -72,6 +72,7 @@ impl<'a, E: 'a + Ord> TreeNode<E> {
 }
 
 impl<E: Ord> TreeNode<E> {
+    /// Find the Rc containing the target E if it exists
     fn find_key(&self, target: &E) -> Option<&Rc<E>> {
         if let Some((key, _)) = self.r_children.get_key_value(target) {
             Some(key)
@@ -187,8 +188,26 @@ impl<E: Ord> RedundantDiscriminationTree<E> {
         self.root
             .reorganize_paths_for_compatibility(&excerpt, &self.root);
     }
+    pub fn complete_match(&self, query: &BTreeSet<E>) -> Option<Rc<TreeNode<E>>> {
+        // Implement RedundantDiscriminationTree's complete_match()
+        None
+    }
 
     pub fn excerpts(&self) -> BTreeSet<Rc<TreeNode<E>>> {
         self.root.excerpts()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let mut rdt = RedundantDiscriminationTree::<&str>::new();
+        let excerpt: BTreeSet<&str> = ["a", "b", "c", "d"].into();
+        assert!(rdt.complete_match(&excerpt).is_none());
+        rdt.insert(excerpt.clone());
+        //assert!(rdt.complete_match(&excerpt).is_some());
     }
 }
