@@ -240,8 +240,8 @@ impl<E: Ord + Clone> TreeNode<E> {
 
     fn reorganize_paths_for_compatibility(&self, excerpt: &BTreeSet<Rc<E>>, base_node: &Rc<Self>) {
         let mut changes = BTreeSet::<(Rc<Self>, Rc<Self>)>::new();
-        base_node.reorganize_paths_part1(&excerpt, base_node, &mut changes);
-        base_node.reorganize_paths_part2(&excerpt, base_node, &mut changes);
+        base_node.reorganize_paths_part1(excerpt, base_node, &mut changes);
+        base_node.reorganize_paths_part2(excerpt, base_node, &mut changes);
     }
 
     // Algorithm 6.9
@@ -441,7 +441,7 @@ impl<E: Ord + Clone + Debug> RedundantDiscriminationTree<E> {
     }
 
     pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) {
-        let excerpt = self.root.convert(raw_excerpt.clone());
+        let excerpt = self.root.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&excerpt, &self.root);
         debug_assert!(self.root.is_recursive_compatible_with(&excerpt));
@@ -481,12 +481,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
             return format!("C: {} {{}}", format_set(&self.elements));
         }
         let mut fstr = format!("C: {} {{\n", format_set(&self.elements));
-        let mut keys: BTreeSet<Rc<E>> = self
-            .r_children
-            .borrow()
-            .keys()
-            .map(|x| Rc::clone(x))
-            .collect();
+        let mut keys: BTreeSet<Rc<E>> = self.r_children.borrow().keys().map(Rc::clone).collect();
         while let Some(j) = keys.first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(j).unwrap();
             let tstr = format!(
@@ -497,12 +492,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
             fstr.push_str(&tstr);
             keys = &keys - &r_child_keys;
         }
-        let mut keys: BTreeSet<Rc<E>> = self
-            .v_children
-            .borrow()
-            .keys()
-            .map(|x| Rc::clone(x))
-            .collect();
+        let mut keys: BTreeSet<Rc<E>> = self.v_children.borrow().keys().map(Rc::clone).collect();
         while let Some(j) = keys.first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(j).unwrap();
             let tstr = format!(
@@ -519,10 +509,8 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
 
     fn verify_tree_node(&self) -> bool {
         let mut result = true;
-        let r_keys =
-            BTreeSet::<Rc<E>>::from_iter(self.r_children.borrow().keys().map(|x| Rc::clone(x)));
-        let v_keys =
-            BTreeSet::<Rc<E>>::from_iter(self.v_children.borrow().keys().map(|x| Rc::clone(x)));
+        let r_keys = BTreeSet::<Rc<E>>::from_iter(self.r_children.borrow().keys().map(Rc::clone));
+        let v_keys = BTreeSet::<Rc<E>>::from_iter(self.v_children.borrow().keys().map(Rc::clone));
         if !r_keys.is_disjoint(&self.elements) {
             println!(
                 "real indices overlap C {} <> {}",
@@ -548,8 +536,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
 
     fn verify_tree(&self) -> bool {
         let mut result = self.verify_tree_node();
-        let mut keys =
-            BTreeSet::<Rc<E>>::from_iter(self.r_children.borrow().keys().map(|x| Rc::clone(x)));
+        let mut keys = BTreeSet::<Rc<E>>::from_iter(self.r_children.borrow().keys().map(Rc::clone));
         while let Some(key) = keys.first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
             keys = &keys - &r_child_keys;
