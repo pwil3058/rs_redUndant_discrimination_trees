@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::rc::Rc;
 
-pub struct TreeNode<E: Ord> {
-    pub elements: BTreeSet<Rc<E>>,
+struct TreeNode<E: Ord> {
+    elements: BTreeSet<Rc<E>>,
     r_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
     v_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
     excerpt_count: Cell<usize>,
@@ -97,19 +97,6 @@ impl<'a, E: 'a + Ord + Clone> TreeNode<E> {
 
     fn incr_epitome_count(&self) {
         self.epitome_count.set(self.epitome_count.get() + 1)
-    }
-
-    pub fn excerpts(&self) -> BTreeSet<Rc<TreeNode<E>>> {
-        // TODO: implement this properly
-        BTreeSet::<Rc<TreeNode<E>>>::new()
-    }
-
-    pub fn is_excerpt(&self) -> bool {
-        self.excerpt_count.get() > 0
-    }
-
-    pub fn is_epitome(&self) -> bool {
-        self.epitome_count.get() > 0
     }
 }
 
@@ -429,6 +416,12 @@ impl<E: Ord + Clone> Engine<E> for Rc<TreeNode<E>> {
 }
 
 #[derive(Default)]
+pub struct SimpleAnswer {
+    pub excerpt_count: usize,
+    pub epitome_count: usize,
+}
+
+#[derive(Default)]
 pub struct RedundantDiscriminationTree<E: Ord + Clone> {
     root: Rc<TreeNode<E>>,
 }
@@ -450,13 +443,19 @@ impl<E: Ord + Clone + Debug> RedundantDiscriminationTree<E> {
         debug_assert!(self.root.verify_tree());
     }
 
-    pub fn complete_match(&self, query: BTreeSet<E>) -> Option<Rc<TreeNode<E>>> {
+    fn complete_match_node(&self, query: BTreeSet<E>) -> Option<Rc<TreeNode<E>>> {
         // Implement RedundantDiscriminationTree's complete_match()
         self.root.complete_match(query)
     }
 
-    pub fn excerpts(&self) -> BTreeSet<Rc<TreeNode<E>>> {
-        self.root.excerpts()
+    pub fn complete_match(&self, query: BTreeSet<E>) -> Option<SimpleAnswer> {
+        let matched_node = self.complete_match_node(query)?;
+        let excerpt_count = matched_node.excerpt_count.get();
+        let epitome_count = matched_node.epitome_count.get();
+        Some(SimpleAnswer {
+            excerpt_count,
+            epitome_count,
+        })
     }
 }
 
