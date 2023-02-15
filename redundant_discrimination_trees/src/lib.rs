@@ -2,10 +2,10 @@ use ord_set_ops_iter::adapter::{OrdSetOpsMapAdaption, OrdSetOpsSetAdaption};
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-struct TreeNode<E: Ord> {
+struct TreeNode<E: Ord + Debug> {
     elements: BTreeSet<Rc<E>>,
     r_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
     v_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
@@ -13,7 +13,15 @@ struct TreeNode<E: Ord> {
     epitome_count: Cell<usize>,
 }
 
-impl<E: Ord + Clone> Default for TreeNode<E> {
+impl<E: Ord + Clone + Debug> Debug for TreeNode<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TreeNode: {0:?}\n", self.elements)?;
+        write!(f, "\tReal Children: {0:?}\n", self.r_children.borrow())?;
+        write!(f, "\tVirtual Children: {0:?}\n", self.v_children.borrow())
+    }
+}
+
+impl<E: Ord + Clone + Debug> Default for TreeNode<E> {
     fn default() -> Self {
         Self {
             elements: BTreeSet::new(),
@@ -25,27 +33,27 @@ impl<E: Ord + Clone> Default for TreeNode<E> {
     }
 }
 
-impl<E: Ord + Clone> PartialEq for TreeNode<E> {
+impl<E: Ord + Clone + Debug> PartialEq for TreeNode<E> {
     fn eq(&self, other: &Self) -> bool {
         self.elements == other.elements
     }
 }
 
-impl<E: Ord + Clone> Eq for TreeNode<E> {}
+impl<E: Ord + Clone + Debug> Eq for TreeNode<E> {}
 
-impl<E: Ord + Clone + Clone> PartialOrd for TreeNode<E> {
+impl<E: Ord + Clone + Debug> PartialOrd for TreeNode<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.elements.partial_cmp(&other.elements)
     }
 }
 
-impl<E: Ord + Clone> Ord for TreeNode<E> {
+impl<E: Ord + Clone + Debug> Ord for TreeNode<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl<'a, E: 'a + Ord + Clone> TreeNode<E> {
+impl<'a, E: 'a + Ord + Clone + Debug> TreeNode<E> {
     fn tabula_rasa() -> Rc<Self> {
         Rc::new(Self::default())
     }
@@ -100,7 +108,7 @@ impl<'a, E: 'a + Ord + Clone> TreeNode<E> {
     }
 }
 
-impl<E: Ord + Clone> TreeNode<E> {
+impl<E: Ord + Clone + Debug> TreeNode<E> {
     /// Find the Rc containing the target E if it exists
     fn find_key(&self, target: &E) -> Option<Rc<E>> {
         if let Some((key, _)) = self.r_children.borrow().get_key_value(target) {
@@ -144,7 +152,7 @@ impl<E: Ord + Clone> TreeNode<E> {
             BTreeSet::<Rc<E>>::from_iter(r_child.elements.intersection(excerpt).cloned());
         let v_children = r_child.merged_children();
         let new_node = Self::new_epitome(elements, v_children);
-        r_child.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
+        new_node.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(excerpt.intersection(&r_child_keys), &new_node);
     }
 
@@ -155,9 +163,9 @@ impl<E: Ord + Clone> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys: BTreeSet<Rc<E>> = (excerpt.oso_iter() & self.v_children.borrow().oso_keys())
-            .cloned()
-            .collect();
+        let mut keys = BTreeSet::<Rc<E>>::from_iter(
+            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
+        );
         while let Some(key) = keys.first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
             let p = &r_child;
@@ -199,9 +207,9 @@ impl<E: Ord + Clone> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys: BTreeSet<Rc<E>> = (excerpt.oso_iter() & self.v_children.borrow().oso_keys())
-            .cloned()
-            .collect();
+        let mut keys = BTreeSet::<Rc<E>>::from_iter(
+            (excerpt.oso_iter() & self.v_children.borrow().oso_keys()).cloned(),
+        );
         while let Some(key) = keys.first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
             if excerpt.is_superset(&v_child_keys) {
@@ -361,12 +369,12 @@ impl<E: Ord + Clone> TreeNode<E> {
     }
 }
 
-trait Engine<E: Ord + Clone>: Sized {
+trait Engine<E: Ord + Clone + Debug>: Sized {
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>);
     fn complete_match(&self, query: BTreeSet<E>) -> Option<Self>;
 }
 
-impl<E: Ord + Clone> Engine<E> for Rc<TreeNode<E>> {
+impl<E: Ord + Clone + Debug> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>) {
         let keys = excerpt - &self.elements;
@@ -422,7 +430,7 @@ pub struct SimpleAnswer {
 }
 
 #[derive(Default)]
-pub struct RedundantDiscriminationTree<E: Ord + Clone> {
+pub struct RedundantDiscriminationTree<E: Ord + Clone + Debug> {
     root: Rc<TreeNode<E>>,
 }
 
@@ -466,7 +474,7 @@ fn format_set<E: Ord + Debug + Clone>(set: &BTreeSet<Rc<E>>) -> String {
 }
 
 impl<E: Ord + Debug + Clone> TreeNode<E> {
-    fn format_mop_short(&self) -> String {
+    fn format_tree_node_short(&self) -> String {
         let elements: Vec<&Rc<E>> = self.elements.iter().collect();
         let r_children = self.r_children.borrow();
         let r_children_keys: Vec<&Rc<E>> = r_children.keys().collect();
@@ -475,7 +483,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
         format!("C: {elements:?} I_r: {r_children_keys:?} I_v: {v_children_keys:?}")
     }
 
-    fn format_mop(&self) -> String {
+    fn format_tree_node(&self) -> String {
         if self.r_children.borrow().len() == 0 && self.v_children.borrow().len() == 0 {
             return format!("C: {} {{}}", format_set(&self.elements));
         }
@@ -486,7 +494,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
             let tstr = format!(
                 "\tR: {} -> {}\n",
                 format_set(&r_child_keys),
-                r_child.format_mop_short()
+                r_child.format_tree_node_short()
             );
             fstr.push_str(&tstr);
             keys = &keys - &r_child_keys;
@@ -497,7 +505,7 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
             let tstr = format!(
                 "\tV: {} -> {}\n",
                 format_set(&v_child_keys),
-                v_child.format_mop_short()
+                v_child.format_tree_node_short()
             );
             fstr.push_str(&tstr);
             keys = &keys - &v_child_keys;
@@ -512,7 +520,8 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
         let v_keys = BTreeSet::<Rc<E>>::from_iter(self.v_children.borrow().keys().map(Rc::clone));
         if !r_keys.is_disjoint(&self.elements) {
             println!(
-                "real indices overlap C {} <> {}",
+                "FAIL: TreeNode: {:?} real keys overlap C {} <> {}",
+                self.elements,
                 format_set(&r_keys),
                 format_set(&self.elements)
             );
@@ -520,14 +529,15 @@ impl<E: Ord + Debug + Clone> TreeNode<E> {
         };
         if !v_keys.is_disjoint(&self.elements) {
             println!(
-                "virt indices overlap C {} <> {}",
+                "FAIL: TreeNode: {:?} virt keys overlap C {} <> {}",
+                self.elements,
                 format_set(&v_keys),
                 format_set(&self.elements)
             );
             result = false;
         };
         if !r_keys.is_disjoint(&v_keys) {
-            println!("child indices overlap {}", self.format_mop());
+            println!("FAIL: child keys overlap {}", self.format_tree_node());
             result = false;
         };
         result
@@ -552,9 +562,10 @@ mod tests {
     #[test]
     fn it_works() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
-        let excerpt: BTreeSet<&str> = ["a", "b", "c", "d"].into();
+        let excerpt = BTreeSet::from(["a", "b", "c", "d"]);
         assert!(rdt.complete_match(excerpt.clone()).is_none());
         rdt.insert(excerpt.clone());
         assert!(rdt.complete_match(excerpt.clone()).is_some());
+        rdt.insert(BTreeSet::from(["a", "b", "c"]));
     }
 }
