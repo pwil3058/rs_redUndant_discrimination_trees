@@ -15,9 +15,9 @@ struct TreeNode<E: Ord + Debug> {
 
 impl<E: Ord + Clone + Debug> Debug for TreeNode<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TreeNode: {0:?}\n", self.elements)?;
-        write!(f, "\tReal Children: {0:?}\n", self.r_children.borrow())?;
-        write!(f, "\tVirtual Children: {0:?}\n", self.v_children.borrow())
+        writeln!(f, "TreeNode: {0:?}", self.elements)?;
+        writeln!(f, "\tReal Children: {0:?}", self.r_children.borrow())?;
+        writeln!(f, "\tVirtual Children: {0:?}", self.v_children.borrow())
     }
 }
 
@@ -157,6 +157,7 @@ impl<E: Ord + Clone + Debug> TreeNode<E> {
     }
 
     // Algorithm 6.4
+    #[allow(clippy::mutable_key_type)]
     fn reorganize_paths_part1(
         &self,
         excerpt: &BTreeSet<Rc<E>>,
@@ -233,6 +234,7 @@ impl<E: Ord + Clone + Debug> TreeNode<E> {
         }
     }
 
+    #[allow(clippy::mutable_key_type)]
     fn reorganize_paths_for_compatibility(&self, excerpt: &BTreeSet<Rc<E>>, base_node: &Rc<Self>) {
         let mut changes = BTreeSet::<(Rc<Self>, Rc<Self>)>::new();
         base_node.reorganize_paths_part1(excerpt, base_node, &mut changes);
@@ -240,6 +242,7 @@ impl<E: Ord + Clone + Debug> TreeNode<E> {
     }
 
     // Algorithm 6.9
+    #[allow(clippy::mutable_key_type)]
     fn fix_v_links_for_changes(&self, changes: &BTreeSet<(Rc<Self>, Rc<Self>)>) {
         for (node1, node2) in changes.iter() {
             if node2.elements.is_superset(&self.elements) {
