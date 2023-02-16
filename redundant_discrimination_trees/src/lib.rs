@@ -490,8 +490,10 @@ fn format_children<E: ItemTraits>(mapref: &RefCell<ChildMap<E>>) -> String {
         }
         let child = map.get(key).unwrap();
         string.push_str(&format_set(&child.elements));
-        for _ in 0..child.elements.len() {
-            keys.remove(0);
+        for e in child.elements.iter() {
+            if let Ok(i) = keys.binary_search(e) {
+                keys.remove(i);
+            }
         }
     }
     string.push('}');
