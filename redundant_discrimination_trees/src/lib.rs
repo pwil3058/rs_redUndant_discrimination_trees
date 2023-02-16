@@ -5,23 +5,27 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-struct TreeNode<E: Ord + Debug> {
+pub trait ItemTraits: Ord + Clone + Debug {}
+
+type ChildMap<E> = BTreeMap<Rc<E>, Rc<TreeNode<E>>>;
+
+struct TreeNode<E: ItemTraits> {
     elements: BTreeSet<Rc<E>>,
-    r_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
-    v_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
+    r_children: RefCell<ChildMap<E>>,
+    v_children: RefCell<ChildMap<E>>,
     excerpt_count: Cell<usize>,
     epitome_count: Cell<usize>,
 }
 
-impl<E: Ord + Clone + Debug> Debug for TreeNode<E> {
+impl<E: ItemTraits> Debug for TreeNode<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "TreeNode: {0:?}", self.elements)?;
-        writeln!(f, "\tReal Children: {0:?}", self.r_children.borrow())?;
-        writeln!(f, "\tVirtual Children: {0:?}", self.v_children.borrow())
+        writeln!(f, "\tReal ChildMap: {0:?}", self.r_children.borrow())?;
+        writeln!(f, "\tVirtual ChildMap: {0:?}", self.v_children.borrow())
     }
 }
 
-impl<E: Ord + Clone + Debug> Default for TreeNode<E> {
+impl<E: ItemTraits> Default for TreeNode<E> {
     fn default() -> Self {
         Self {
             elements: BTreeSet::new(),
@@ -33,27 +37,27 @@ impl<E: Ord + Clone + Debug> Default for TreeNode<E> {
     }
 }
 
-impl<E: Ord + Clone + Debug> PartialEq for TreeNode<E> {
+impl<E: ItemTraits> PartialEq for TreeNode<E> {
     fn eq(&self, other: &Self) -> bool {
         self.elements == other.elements
     }
 }
 
-impl<E: Ord + Clone + Debug> Eq for TreeNode<E> {}
+impl<E: ItemTraits> Eq for TreeNode<E> {}
 
-impl<E: Ord + Clone + Debug> PartialOrd for TreeNode<E> {
+impl<E: ItemTraits> PartialOrd for TreeNode<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.elements.partial_cmp(&other.elements)
     }
 }
 
-impl<E: Ord + Clone + Debug> Ord for TreeNode<E> {
+impl<E: ItemTraits> Ord for TreeNode<E> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl<'a, E: 'a + Ord + Clone + Debug> TreeNode<E> {
+impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     fn tabula_rasa() -> Rc<Self> {
         Rc::new(Self::default())
     }
@@ -66,10 +70,7 @@ impl<'a, E: 'a + Ord + Clone + Debug> TreeNode<E> {
         })
     }
 
-    pub fn new_epitome(
-        elements: BTreeSet<Rc<E>>,
-        v_children: RefCell<BTreeMap<Rc<E>, Rc<Self>>>,
-    ) -> Rc<Self> {
+    pub fn new_epitome(elements: BTreeSet<Rc<E>>, v_children: RefCell<ChildMap<E>>) -> Rc<Self> {
         Rc::new(Self {
             elements,
             v_children,
@@ -108,7 +109,7 @@ impl<'a, E: 'a + Ord + Clone + Debug> TreeNode<E> {
     }
 }
 
-impl<E: Ord + Clone + Debug> TreeNode<E> {
+impl<E: ItemTraits> TreeNode<E> {
     /// Find the Rc containing the target E if it exists
     fn find_key(&self, target: &E) -> Option<Rc<E>> {
         if let Some((key, _)) = self.r_children.borrow().get_key_value(target) {
@@ -340,7 +341,7 @@ impl<E: Ord + Clone + Debug> TreeNode<E> {
         }
     }
 
-    fn merged_children(&self) -> RefCell<BTreeMap<Rc<E>, Rc<Self>>> {
+    fn merged_children(&self) -> RefCell<ChildMap<E>> {
         let mut map = BTreeMap::new();
         // If these panic it means that there's been an implementation error somewhere
         for (key, v) in self.r_children.borrow().iter() {
@@ -372,12 +373,12 @@ impl<E: Ord + Clone + Debug> TreeNode<E> {
     }
 }
 
-trait Engine<E: Ord + Clone + Debug>: Sized {
+trait Engine<E: ItemTraits>: Sized {
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>);
     fn complete_match(&self, query: BTreeSet<E>) -> Option<Self>;
 }
 
-impl<E: Ord + Clone + Debug> Engine<E> for Rc<TreeNode<E>> {
+impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>) {
         let keys = excerpt - &self.elements;
@@ -433,11 +434,11 @@ pub struct SimpleAnswer {
 }
 
 #[derive(Default)]
-pub struct RedundantDiscriminationTree<E: Ord + Clone + Debug> {
+pub struct RedundantDiscriminationTree<E: ItemTraits> {
     root: Rc<TreeNode<E>>,
 }
 
-impl<E: Ord + Clone + Debug> RedundantDiscriminationTree<E> {
+impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     pub fn new() -> Self {
         Self {
             root: TreeNode::<E>::tabula_rasa(),
@@ -471,19 +472,43 @@ impl<E: Ord + Clone + Debug> RedundantDiscriminationTree<E> {
 }
 
 // Debug Helpers
-fn format_set<E: Ord + Debug + Clone>(set: &BTreeSet<Rc<E>>) -> String {
+fn format_set<E: ItemTraits + Clone>(set: &BTreeSet<Rc<E>>) -> String {
     let v: Vec<&Rc<E>> = set.iter().collect();
     format!("{v:?}")
 }
 
-impl<E: Ord + Debug + Clone> TreeNode<E> {
+fn format_children<E: ItemTraits>(mapref: &RefCell<ChildMap<E>>) -> String {
+    let map = mapref.borrow();
+    let mut keys: Vec<Rc<E>> = map.keys().map(Rc::clone).collect();
+    let mut string = "{".to_string();
+    let mut is_first = true;
+    while let Some(key) = keys.first() {
+        if !is_first {
+            string.push_str(", ");
+        } else {
+            is_first = false;
+        }
+        let child = map.get(key).unwrap();
+        string.push_str(&format_set(&child.elements));
+        for _ in 0..child.elements.len() {
+            keys.remove(0);
+        }
+    }
+    string.push('}');
+    string
+}
+
+impl<E: ItemTraits> TreeNode<E> {
     fn format_tree_node_short(&self) -> String {
         let elements: Vec<&Rc<E>> = self.elements.iter().collect();
         let r_children = self.r_children.borrow();
         let r_children_keys: Vec<&Rc<E>> = r_children.keys().collect();
         let v_children = self.v_children.borrow();
         let v_children_keys: Vec<&Rc<E>> = v_children.keys().collect();
-        format!("C: {elements:?} I_r: {r_children_keys:?} I_v: {v_children_keys:?}")
+        let r_children = format_children(&self.r_children);
+        format!(
+            "C: {elements:?} I_r: {r_children_keys:?} I_v: {v_children_keys:?} :: {r_children:?}"
+        )
     }
 
     fn format_tree_node(&self) -> String {
