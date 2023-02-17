@@ -39,9 +39,13 @@ struct TreeNode<E: ItemTraits> {
 
 impl<E: ItemTraits> Debug for TreeNode<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "TreeNode: {0:?}", self.elements)?;
-        writeln!(f, "\tReal ChildMap: {0:?}", self.r_children.borrow())?;
-        writeln!(f, "\tVirtual ChildMap: {0:?}", self.v_children.borrow())
+        let elements = &self.elements;
+        let r_children = self.get_r_children();
+        let v_children = self.get_v_children();
+        writeln!(
+            f,
+            "TreeNode: {elements:?} Real Children: {r_children:?} VirtualChildren: {v_children:?}"
+        )
     }
 }
 
@@ -399,7 +403,7 @@ trait Engine<E: ItemTraits>: Sized {
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>) {
-        println!("Absorb({excerpt:?}): {}", self.format_tree_node_short());
+        println!("Absorb({excerpt:?}): {self:?}");
         let keys = excerpt - &self.elements;
         if keys.is_empty() {
             *new_excerpt = Some(Rc::clone(self));
@@ -432,7 +436,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
         let query = self.convert(query);
         let mut keys = query.oso_iter() - self.elements.oso_iter();
         while let Some(key) = keys.next() {
-            println!("Match: {}", p.format_tree_node_short());
+            println!("Match: {p:?}");
             if let Some(node) = p.get_r_child(key) {
                 p = node;
                 keys = query.oso_iter() - p.elements.oso_iter();
@@ -521,15 +525,6 @@ fn format_children<E: ItemTraits>(mapref: &RefCell<ChildMap<E>>) -> String {
 }
 
 impl<E: ItemTraits> TreeNode<E> {
-    fn format_tree_node_short(&self) -> String {
-        let elements = &self.elements;
-        let r_children = self.get_r_children();
-        let v_children = self.get_v_children();
-        format!(
-            "TreeNode: {elements:?} Real Children: {r_children:?} VirtualChildren: {v_children:?}"
-        )
-    }
-
     fn verify_tree_node(&self) -> bool {
         let mut result = true;
         let r_keys = BTreeSet::<Rc<E>>::from_iter(self.r_children.borrow().keys().map(Rc::clone));
@@ -553,7 +548,7 @@ impl<E: ItemTraits> TreeNode<E> {
             result = false;
         };
         if !r_keys.is_disjoint(&v_keys) {
-            println!("FAIL: child keys overlap {}", self.format_tree_node_short());
+            println!("FAIL: child keys overlap {self:?}");
             result = false;
         };
         result
