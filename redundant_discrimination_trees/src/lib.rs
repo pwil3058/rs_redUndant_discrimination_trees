@@ -264,8 +264,8 @@ impl<E: ItemTraits> TreeNode<E> {
                 self.interpose_for_virtual_compatibility(key, excerpt);
                 let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
                 r_child.fix_v_links_for_changes(changes);
-                base_node.fix_v_links_for_pair(&(v_child.clone(), r_child.clone()));
-                changes.insert((v_child.clone(), r_child.clone()));
+                base_node.fix_v_links_for_pair(&(Rc::clone(&v_child), Rc::clone(&r_child)));
+                changes.insert((Rc::clone(&v_child), Rc::clone(&r_child)));
                 keys = &keys - &r_child_keys;
             }
         }
@@ -445,7 +445,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let mut excerpt = BTreeSet::<Rc<E>>::new();
         while let Some(element) = raw_excerpt.pop_first() {
             if let Some(key) = self.root.find_key(&element) {
-                excerpt.insert(key.clone());
+                excerpt.insert(Rc::clone(&key));
             } else {
                 excerpt.insert(Rc::new(element));
             }
