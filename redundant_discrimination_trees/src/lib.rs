@@ -1,13 +1,33 @@
 use ord_set_ops_iter::adapter::{OrdSetOpsMapAdaption, OrdSetOpsSetAdaption};
+use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
+// TODO: undo using this trait after development is finished
 pub trait ItemTraits: Ord + Clone + Debug {}
 
+impl ItemTraits for &str {}
+
 type ChildMap<E> = BTreeMap<Rc<E>, Rc<TreeNode<E>>>;
+
+trait ChildMapOps<E: ItemTraits> {
+    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>>;
+}
+
+impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
+    // Although expensive this will be useful for verifying alternative method results
+    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>> {
+        let me = self.borrow();
+        BTreeSet::from_iter(
+            me.iter()
+                .filter(|(_, v)| v == &child)
+                .map(|(k, _)| Rc::clone(k)),
+        )
+    }
+}
 
 struct TreeNode<E: ItemTraits> {
     elements: BTreeSet<Rc<E>>,
@@ -86,11 +106,39 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
+    fn get_r_children(&self) -> BTreeSet<BTreeSet<Rc<E>>> {
+        let mut set = BTreeSet::new();
+        let r_children = self.r_children.borrow();
+
+        let mut r_keys = BTreeSet::from_iter(r_children.keys().map(Rc::clone));
+        while let Some(r_key) = r_keys.first() {
+            let r_child = r_children.get(r_key).unwrap();
+            let r_child_keys = &r_child.elements - &self.elements;
+            set.insert(r_child.elements.clone());
+            r_keys = &r_keys - &r_child_keys;
+        }
+        set
+    }
+
     fn insert_v_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, v_child: &Rc<Self>) {
         let mut v_children = self.v_children.borrow_mut();
         for key in iter {
             v_children.insert(Rc::clone(key), Rc::clone(v_child));
         }
+    }
+
+    fn get_v_children(&self) -> BTreeSet<BTreeSet<Rc<E>>> {
+        let mut set = BTreeSet::new();
+        let v_children = self.v_children.borrow();
+
+        let mut v_keys = BTreeSet::from_iter(v_children.keys().map(Rc::clone));
+        while let Some(v_key) = v_keys.first() {
+            let v_child = v_children.get(v_key).unwrap();
+            let v_child_keys = &v_child.elements - &self.elements;
+            set.insert(v_child.elements.clone());
+            v_keys = &v_keys - &v_child_keys;
+        }
+        set
     }
 
     fn delete_v_children<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I) {
@@ -294,24 +342,9 @@ impl<E: ItemTraits> TreeNode<E> {
 
     fn get_r_child_and_keys(&self, key: &Rc<E>) -> Option<(Rc<Self>, BTreeSet<Rc<E>>)> {
         let r_children = self.r_children.borrow();
-        if let Some(r_child) = r_children.get(key) {
-            let mut keys = BTreeSet::new();
-            let v_children = self.v_children.borrow();
-            for key in r_child
-                .elements
-                .difference(&self.elements)
-                .filter(|k| !v_children.contains_key(*k))
-            {
-                if let Some(rdt_i) = r_children.get(key) {
-                    if rdt_i == r_child {
-                        keys.insert(key.clone());
-                    }
-                }
-            }
-            Some((Rc::clone(r_child), keys))
-        } else {
-            None
-        }
+        let r_child = r_children.get(key)?;
+        let r_child_keys = &r_child.elements - &self.elements;
+        Some((Rc::clone(r_child), r_child_keys))
     }
 
     fn get_v_child(&self, key: &E) -> Option<Rc<Self>> {
@@ -321,29 +354,14 @@ impl<E: ItemTraits> TreeNode<E> {
 
     fn get_v_child_and_keys(&self, key: &Rc<E>) -> Option<(Rc<Self>, BTreeSet<Rc<E>>)> {
         let v_children = self.v_children.borrow();
-        if let Some(v_child) = v_children.get(key) {
-            let mut keys = BTreeSet::new();
-            let r_children = self.r_children.borrow();
-            for i in v_child
-                .elements
-                .difference(&self.elements)
-                .filter(|k| !r_children.contains_key(*k))
-            {
-                if let Some(rdt_i) = v_children.get(i) {
-                    if rdt_i == v_child {
-                        keys.insert(i.clone());
-                    }
-                }
-            }
-            Some((Rc::clone(v_child), keys))
-        } else {
-            None
-        }
+        let v_child = v_children.get(key)?;
+        let v_child_keys = &v_child.elements - &self.elements;
+        Some((Rc::clone(v_child), v_child_keys))
     }
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
         let mut map = BTreeMap::new();
-        // If these panic it means that there's been an implementation error somewhere
+        // If these unwraps panic it means that there's been an implementation error somewhere
         for (key, v) in self.r_children.borrow().iter() {
             map.insert(Rc::clone(key), Rc::clone(v)).unwrap();
         }
@@ -381,6 +399,7 @@ trait Engine<E: ItemTraits>: Sized {
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>) {
+        println!("Absorb({excerpt:?}): {}", self.format_tree_node_short());
         let keys = excerpt - &self.elements;
         if keys.is_empty() {
             *new_excerpt = Some(Rc::clone(self));
@@ -413,6 +432,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
         let query = self.convert(query);
         let mut keys = query.oso_iter() - self.elements.oso_iter();
         while let Some(key) = keys.next() {
+            println!("Match: {}", p.format_tree_node_short());
             if let Some(node) = p.get_r_child(key) {
                 p = node;
                 keys = query.oso_iter() - p.elements.oso_iter();
@@ -489,7 +509,7 @@ fn format_children<E: ItemTraits>(mapref: &RefCell<ChildMap<E>>) -> String {
             is_first = false;
         }
         let child = map.get(key).unwrap();
-        string.push_str(&format_set(&child.elements));
+        string.push_str(&format!("{:?}", &child.elements));
         for e in child.elements.iter() {
             if let Ok(i) = keys.binary_search(e) {
                 keys.remove(i);
@@ -502,46 +522,12 @@ fn format_children<E: ItemTraits>(mapref: &RefCell<ChildMap<E>>) -> String {
 
 impl<E: ItemTraits> TreeNode<E> {
     fn format_tree_node_short(&self) -> String {
-        let elements: Vec<&Rc<E>> = self.elements.iter().collect();
-        let r_children = self.r_children.borrow();
-        let r_children_keys: Vec<&Rc<E>> = r_children.keys().collect();
-        let v_children = self.v_children.borrow();
-        let v_children_keys: Vec<&Rc<E>> = v_children.keys().collect();
-        let r_children = format_children(&self.r_children);
+        let elements = &self.elements;
+        let r_children = self.get_r_children();
+        let v_children = self.get_v_children();
         format!(
-            "C: {elements:?} I_r: {r_children_keys:?} I_v: {v_children_keys:?} :: {r_children:?}"
+            "TreeNode: {elements:?} Real Children: {r_children:?} VirtualChildren: {v_children:?}"
         )
-    }
-
-    fn format_tree_node(&self) -> String {
-        if self.r_children.borrow().len() == 0 && self.v_children.borrow().len() == 0 {
-            return format!("C: {} {{}}", format_set(&self.elements));
-        }
-        let mut fstr = format!("C: {} {{\n", format_set(&self.elements));
-        let mut keys: BTreeSet<Rc<E>> = self.r_children.borrow().keys().map(Rc::clone).collect();
-        while let Some(j) = keys.first() {
-            let (r_child, r_child_keys) = self.get_r_child_and_keys(j).unwrap();
-            let tstr = format!(
-                "\tR: {} -> {}\n",
-                format_set(&r_child_keys),
-                r_child.format_tree_node_short()
-            );
-            fstr.push_str(&tstr);
-            keys = &keys - &r_child_keys;
-        }
-        let mut keys: BTreeSet<Rc<E>> = self.v_children.borrow().keys().map(Rc::clone).collect();
-        while let Some(j) = keys.first() {
-            let (v_child, v_child_keys) = self.get_v_child_and_keys(j).unwrap();
-            let tstr = format!(
-                "\tV: {} -> {}\n",
-                format_set(&v_child_keys),
-                v_child.format_tree_node_short()
-            );
-            fstr.push_str(&tstr);
-            keys = &keys - &v_child_keys;
-        }
-        fstr.push('}');
-        fstr
     }
 
     fn verify_tree_node(&self) -> bool {
@@ -567,7 +553,7 @@ impl<E: ItemTraits> TreeNode<E> {
             result = false;
         };
         if !r_keys.is_disjoint(&v_keys) {
-            println!("FAIL: child keys overlap {}", self.format_tree_node());
+            println!("FAIL: child keys overlap {}", self.format_tree_node_short());
             result = false;
         };
         result
