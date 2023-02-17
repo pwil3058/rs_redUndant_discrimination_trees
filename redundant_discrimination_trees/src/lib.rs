@@ -37,8 +37,8 @@ struct TreeNode<E: ItemTraits> {
     elements: BTreeSet<Rc<E>>,
     r_children: RefCell<ChildMap<E>>,
     v_children: RefCell<ChildMap<E>>,
-    excerpt_count: Cell<usize>,
-    epitome_count: Cell<usize>,
+    insert_count: Cell<usize>,
+    subset_count: Cell<usize>,
 }
 
 impl<E: ItemTraits> Debug for TreeNode<E> {
@@ -48,7 +48,9 @@ impl<E: ItemTraits> Debug for TreeNode<E> {
         let v_children = self.get_v_children();
         writeln!(
             f,
-            "TreeNode: {elements:?} Real Children: {r_children:?} VirtualChildren: {v_children:?}"
+            "TreeNode: {elements:?}[{}, {}] Real Children: {r_children:?} VirtualChildren: {v_children:?}",
+            self.insert_count.get(),
+            self.subset_count.get(),
         )
     }
 }
@@ -59,8 +61,8 @@ impl<E: ItemTraits> Default for TreeNode<E> {
             elements: BTreeSet::new(),
             r_children: RefCell::new(BTreeMap::new()),
             v_children: RefCell::new(BTreeMap::new()),
-            excerpt_count: Cell::new(0),
-            epitome_count: Cell::new(0),
+            insert_count: Cell::new(0),
+            subset_count: Cell::new(0),
         }
     }
 }
@@ -92,7 +94,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
 
     pub fn new_excerpt(elements: BTreeSet<Rc<E>>) -> Rc<Self> {
         Rc::new(Self {
-            excerpt_count: Cell::new(1),
+            insert_count: Cell::new(1),
             elements,
             ..Self::default()
         })
@@ -102,7 +104,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         Rc::new(Self {
             elements,
             v_children,
-            epitome_count: Cell::new(1),
+            subset_count: Cell::new(1),
             ..Self::default()
         })
     }
@@ -157,11 +159,11 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     }
 
     fn incr_excerpt_count(&self) {
-        self.excerpt_count.set(self.excerpt_count.get() + 1)
+        self.insert_count.set(self.insert_count.get() + 1)
     }
 
     fn incr_epitome_count(&self) {
-        self.epitome_count.set(self.epitome_count.get() + 1)
+        self.subset_count.set(self.subset_count.get() + 1)
     }
 }
 
@@ -422,8 +424,8 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
 
 #[derive(Default)]
 pub struct SimpleAnswer {
-    pub excerpt_count: usize,
-    pub epitome_count: usize,
+    pub insert_count: usize,
+    pub subset_count: usize,
 }
 
 #[derive(Default)]
@@ -479,11 +481,11 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
                 return None;
             }
         }
-        let excerpt_count = matched_node.excerpt_count.get();
-        let epitome_count = matched_node.epitome_count.get();
+        let insert_count = matched_node.insert_count.get();
+        let subset_count = matched_node.subset_count.get();
         Some(SimpleAnswer {
-            excerpt_count,
-            epitome_count,
+            insert_count,
+            subset_count,
         })
     }
 }
