@@ -357,12 +357,11 @@ impl<E: ItemTraits> TreeNode<E> {
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
         let mut map = BTreeMap::new();
-        // If these unwraps panic it means that there's been an implementation error somewhere
         for (key, v) in self.r_children.borrow().iter() {
-            map.insert(Rc::clone(key), Rc::clone(v)).unwrap();
+            assert!(map.insert(Rc::clone(key), Rc::clone(v)).is_none());
         }
         for (key, v) in self.v_children.borrow().iter() {
-            map.insert(Rc::clone(key), Rc::clone(v)).unwrap();
+            assert!(map.insert(Rc::clone(key), Rc::clone(v)).is_none());
         }
         RefCell::new(map)
     }
@@ -422,7 +421,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, PartialOrd, PartialEq, Ord, Eq, Debug)]
 pub struct SimpleAnswer {
     pub insert_count: usize,
     pub subset_count: usize,
@@ -546,9 +545,55 @@ mod tests {
     fn it_works() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
         let excerpt = BTreeSet::from(["a", "b", "c", "d"]);
-        assert!(rdt.complete_match(excerpt.clone()).is_none());
-        rdt.insert(excerpt.clone());
-        assert!(rdt.complete_match(excerpt.clone()).is_some());
+        assert!(rdt
+            .complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+            .is_none());
+        rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
+            Some(SimpleAnswer {
+                insert_count: 1,
+                subset_count: 0
+            })
+        );
+
         rdt.insert(BTreeSet::from(["a", "b", "c"]));
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
+            Some(SimpleAnswer {
+                insert_count: 1,
+                subset_count: 0
+            })
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
+            Some(SimpleAnswer {
+                insert_count: 1,
+                subset_count: 1
+            })
+        );
+
+        rdt.insert(BTreeSet::from(["a", "b", "d"]));
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
+            Some(SimpleAnswer {
+                insert_count: 1,
+                subset_count: 0
+            })
+        );
+        // assert_eq!(
+        //     rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
+        //     Some(SimpleAnswer {
+        //         insert_count: 1,
+        //         subset_count: 1
+        //     })
+        // );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"])),
+            Some(SimpleAnswer {
+                insert_count: 1,
+                subset_count: 1
+            })
+        );
     }
 }
