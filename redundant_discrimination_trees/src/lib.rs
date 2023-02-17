@@ -117,6 +117,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
+    // TODO: change this to return keys and child pair
     fn get_r_children(&self) -> BTreeSet<BTreeSet<Rc<E>>> {
         let mut set = BTreeSet::new();
         let r_children = self.r_children.borrow();
@@ -124,7 +125,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         let mut r_keys = r_children.get_keys();
         while let Some(r_key) = r_keys.first() {
             let r_child = r_children.get(r_key).unwrap();
-            let r_child_keys = &r_child.elements - &self.elements;
+            let r_child_keys = r_children.get_child_keys(r_child);
             set.insert(r_child.elements.clone());
             r_keys = &r_keys - &r_child_keys;
         }
@@ -145,7 +146,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         let mut v_keys = v_children.get_keys();
         while let Some(v_key) = v_keys.first() {
             let v_child = v_children.get(v_key).unwrap();
-            let v_child_keys = &v_child.elements - &self.elements;
+            let v_child_keys = v_children.get_child_keys(v_child);
             set.insert(v_child.elements.clone());
             v_keys = &v_keys - &v_child_keys;
         }
