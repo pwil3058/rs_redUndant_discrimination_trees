@@ -177,20 +177,6 @@ impl<E: ItemTraits> TreeNode<E> {
         }
     }
 
-    /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
-    /// instances where available.
-    fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
-        let mut excerpt = BTreeSet::<Rc<E>>::new();
-        while let Some(element) = raw_excerpt.pop_first() {
-            if let Some(key) = self.find_key(&element) {
-                excerpt.insert(key.clone());
-            } else {
-                excerpt.insert(Rc::new(element));
-            }
-        }
-        excerpt
-    }
-
     // Algorithm: 6.2
     fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
@@ -401,7 +387,6 @@ impl<E: ItemTraits> TreeNode<E> {
 
 trait Engine<E: ItemTraits>: Sized {
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_excerpt: &mut Option<Rc<TreeNode<E>>>);
-    fn complete_match(&self, query: BTreeSet<E>) -> Option<Self>;
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
@@ -433,26 +418,6 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             self.incr_epitome_count();
         }
     }
-
-    // Algorithm: 6.13
-    fn complete_match(&self, query: BTreeSet<E>) -> Option<Self> {
-        let mut p = Rc::clone(self);
-        let query = self.convert(query);
-        let mut keys = query.oso_iter() - self.elements.oso_iter();
-        while let Some(key) = keys.next() {
-            println!("Match: {p:?}");
-            if let Some(node) = p.get_r_child(key) {
-                p = node;
-                keys = query.oso_iter() - p.elements.oso_iter();
-            } else if let Some(node) = p.get_v_child(key) {
-                p = node;
-                keys = query.oso_iter() - p.elements.oso_iter();
-            } else {
-                return None;
-            }
-        }
-        Some(p)
-    }
 }
 
 #[derive(Default)]
@@ -473,8 +438,22 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         }
     }
 
+    /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
+    /// instances where available.
+    fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
+        let mut excerpt = BTreeSet::<Rc<E>>::new();
+        while let Some(element) = raw_excerpt.pop_first() {
+            if let Some(key) = self.root.find_key(&element) {
+                excerpt.insert(key.clone());
+            } else {
+                excerpt.insert(Rc::new(element));
+            }
+        }
+        excerpt
+    }
+
     pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) {
-        let excerpt = self.root.convert(raw_excerpt);
+        let excerpt = self.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&excerpt, &self.root);
         debug_assert!(self.root.is_recursive_compatible_with(&excerpt));
@@ -483,13 +462,23 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         debug_assert!(self.root.verify_tree());
     }
 
-    fn complete_match_node(&self, query: BTreeSet<E>) -> Option<Rc<TreeNode<E>>> {
-        // Implement RedundantDiscriminationTree's complete_match()
-        self.root.complete_match(query)
-    }
-
     pub fn complete_match(&self, query: BTreeSet<E>) -> Option<SimpleAnswer> {
-        let matched_node = self.complete_match_node(query)?;
+        let query = self.convert(query);
+        let mut matched_node = Rc::clone(&self.root);
+        // NB: even though root.elements is always empty we do this to get the right type of Iterator
+        let mut keys = query.oso_iter() - self.root.elements.oso_iter();
+        while let Some(key) = keys.next() {
+            println!("Match: {matched_node:?}");
+            if let Some(node) = matched_node.get_r_child(key) {
+                matched_node = node;
+                keys = query.oso_iter() - matched_node.elements.oso_iter();
+            } else if let Some(node) = matched_node.get_v_child(key) {
+                matched_node = node;
+                keys = query.oso_iter() - matched_node.elements.oso_iter();
+            } else {
+                return None;
+            }
+        }
         let excerpt_count = matched_node.excerpt_count.get();
         let epitome_count = matched_node.epitome_count.get();
         Some(SimpleAnswer {
