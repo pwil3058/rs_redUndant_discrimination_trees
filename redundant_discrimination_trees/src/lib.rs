@@ -429,6 +429,29 @@ pub struct Answer<E: ItemTraits> {
     pub subset_count: usize,
 }
 
+#[derive(PartialOrd, PartialEq, Ord, Eq, Debug)]
+pub enum Class {
+    Insertion,
+    Subset,
+    Both,
+}
+
+impl<E: ItemTraits> Answer<E> {
+    pub fn class(&self) -> Class {
+        if self.insert_count > 0 {
+            if self.subset_count > 0 {
+                Class::Both
+            } else {
+                Class::Insertion
+            }
+        } else if self.subset_count > 0 {
+            Class::Subset
+        } else {
+            panic!("there's a bug somewhere")
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct RedundantDiscriminationTree<E: ItemTraits> {
     root: Rc<TreeNode<E>>,
@@ -516,7 +539,7 @@ impl<E: ItemTraits> TreeNode<E> {
         };
         if !v_keys.is_disjoint(&self.elements) {
             println!(
-                "FAIL: TreeNode: {:?} virt keys overlap C {} <> {}",
+                "FAIL: TreeNode: {:?} virtual keys overlap C {} <> {}",
                 self.elements,
                 format_set(&v_keys),
                 format_set(&self.elements)
@@ -524,7 +547,7 @@ impl<E: ItemTraits> TreeNode<E> {
             result = false;
         };
         if !r_keys.is_disjoint(&v_keys) {
-            println!("FAIL: child keys overlap {self:?}");
+            println!("FAIL: real and virtual child keys overlap {self:?}");
             result = false;
         };
         result
@@ -554,56 +577,44 @@ mod tests {
             .is_none());
         let abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(Answer {
-                set: abcd.clone(),
-                insert_count: 1,
-                subset_count: 0
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
         );
 
         let abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(Answer {
-                set: abcd.clone(),
-                insert_count: 1,
-                subset_count: 0
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
-            Some(Answer {
-                set: abc.clone(),
-                insert_count: 1,
-                subset_count: 1
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
+                .unwrap()
+                .class(),
+            Class::Both
         );
 
         let abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(Answer {
-                set: abcd.clone(),
-                insert_count: 1,
-                subset_count: 0
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
-            Some(Answer {
-                set: abc.clone(),
-                insert_count: 1,
-                subset_count: 1
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
+                .unwrap()
+                .class(),
+            Class::Both
         );
         assert_eq!(
-            rdt.complete_match(BTreeSet::from(["a", "b", "d"])),
-            Some(Answer {
-                set: abd.clone(),
-                insert_count: 1,
-                subset_count: 1
-            })
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
         );
     }
 }
