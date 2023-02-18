@@ -22,12 +22,19 @@ impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
         BTreeSet::from_iter(self.keys().map(Rc::clone))
     }
 
-    // Although expensive this will be useful for verifying alternative method results
     fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>> {
         BTreeSet::from_iter(
-            self.iter()
-                .filter(|(_, v)| v == &child)
-                .map(|(k, _)| Rc::clone(k)),
+            child
+                .elements
+                .iter()
+                .filter(|e| {
+                    if let Some(c) = self.get(*e) {
+                        c == child
+                    } else {
+                        false
+                    }
+                })
+                .map(Rc::clone),
         )
     }
 }
@@ -575,7 +582,7 @@ mod tests {
         assert!(rdt
             .complete_match(BTreeSet::from(["a", "b", "c", "d"]))
             .is_none());
-        let abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
+        let _abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
@@ -583,7 +590,7 @@ mod tests {
             Class::Insertion
         );
 
-        let abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
+        let _abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
@@ -597,7 +604,7 @@ mod tests {
             Class::Both
         );
 
-        let abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
+        let _abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
