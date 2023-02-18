@@ -175,6 +175,16 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     }
 
     #[inline]
+    fn get_r_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>> {
+        self.r_children.borrow().get_child_and_keys(key)
+    }
+
+    #[inline]
+    fn get_v_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>> {
+        self.v_children.borrow().get_child_and_keys(key)
+    }
+
+    #[inline]
     fn insert_r_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, r_child: &Rc<Self>) {
         self.r_children.borrow_mut().insert_child(iter, r_child);
     }
@@ -214,7 +224,7 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm: 6.2
     fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
-        let (r_child, r_child_keys) = self.r_children.borrow().get_child_and_keys(key).unwrap();
+        let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
         println!("IRVC: NEW_SUBSET({elements:?})");
@@ -225,7 +235,7 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm 6.3
     fn split(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
-        let (r_child, r_child_keys) = self.r_children.borrow().get_child_and_keys(key).unwrap();
+        let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
         println!("SPLIT({self:?}, {key:?}, {excerpt:?}): NEW_SUBSET({elements:?})");
@@ -246,7 +256,7 @@ impl<E: ItemTraits> TreeNode<E> {
             (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
         );
         while let Some(key) = keys.first() {
-            let (r_child, r_child_keys) = self.r_children.borrow().get_child_and_keys(key).unwrap();
+            let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
             let orig_r_child = &r_child;
             if !excerpt.is_superset(&r_child_keys) {
                 self.split(key, excerpt);
@@ -269,7 +279,7 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm 6.6
     fn interpose_for_virtual_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
-        let (v_child, v_child_keys) = self.v_children.borrow().get_child_and_keys(key).unwrap();
+        let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
         let elements = &v_child.elements - excerpt;
         let v_children = v_child.merged_children();
         println!("IFVC: NEW_SUBSET({elements:?})");
@@ -291,13 +301,12 @@ impl<E: ItemTraits> TreeNode<E> {
             (excerpt.oso_iter() & self.v_children.borrow().oso_keys()).cloned(),
         );
         while let Some(key) = keys.first() {
-            let (v_child, v_child_keys) = self.v_children.borrow().get_child_and_keys(key).unwrap();
+            let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
             if excerpt.is_superset(&v_child_keys) {
                 keys = &keys - &v_child_keys;
             } else {
                 self.interpose_for_virtual_compatibility(key, excerpt);
-                let (r_child, r_child_keys) =
-                    self.r_children.borrow().get_child_and_keys(key).unwrap();
+                let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
                 r_child.fix_v_links_for_changes(changes);
                 base_node.fix_v_links_for_pair(&(Rc::clone(&v_child), Rc::clone(&r_child)));
                 changes.insert((Rc::clone(&v_child), Rc::clone(&r_child)));
@@ -308,7 +317,7 @@ impl<E: ItemTraits> TreeNode<E> {
             .cloned()
             .collect();
         while let Some(key) = keys.first() {
-            let (r_child, r_child_keys) = self.r_children.borrow().get_child_and_keys(key).unwrap();
+            let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
             r_child.reorganize_paths_part2(excerpt, base_node, changes);
             keys = &keys - &r_child_keys;
         }
@@ -360,8 +369,7 @@ impl<E: ItemTraits> TreeNode<E> {
             }
             let mut keys = &keys & &self.r_children.borrow().get_keys();
             while let Some(key) = keys.first() {
-                let (r_child, r_child_keys) =
-                    self.r_children.borrow().get_child_and_keys(key).unwrap();
+                let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
                 r_child.fix_v_links_for_pair(nodes);
                 keys = &keys - &r_child_keys;
             }
@@ -414,8 +422,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
         } else {
             let mut a_keys = &keys & &self.r_children.borrow().get_keys();
             while let Some(j) = a_keys.first() {
-                let (r_child, r_child_keys) =
-                    self.r_children.borrow().get_child_and_keys(j).unwrap();
+                let (r_child, r_child_keys) = self.get_r_child_and_keys(j).unwrap();
                 r_child.absorb(excerpt, new_insert_is);
                 a_keys = &a_keys - &r_child_keys;
             }
@@ -574,7 +581,7 @@ impl<E: ItemTraits> TreeNode<E> {
         let mut result = self.verify_tree_node();
         let mut keys = self.r_children.borrow().get_keys();
         while let Some(key) = keys.first() {
-            let (r_child, r_child_keys) = self.r_children.borrow().get_child_and_keys(key).unwrap();
+            let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
             keys = &keys - &r_child_keys;
             result = result && r_child.verify_tree();
         }
