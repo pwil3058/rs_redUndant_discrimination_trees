@@ -36,20 +36,21 @@ impl<E: ItemTraits> Debug for ChildAndKeysStruct<E> {
     }
 }
 
-trait ChildMapOps<E: ItemTraits> {
+trait ChildMapOps<'a, E: ItemTraits + 'a> {
     fn get_keys(&self) -> BTreeSet<Rc<E>>;
-    fn get_child(&self, key: &E) -> Option<Rc<TreeNode<E>>>;
+    fn get_child(&self, key: &Rc<E>) -> Option<Rc<TreeNode<E>>>;
     fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>>;
     fn get_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>>;
     fn get_children_and_keys(&self) -> BTreeSet<ChildAndKeysStruct<E>>;
+    fn insert_child<I: Iterator<Item = &'a Rc<E>>>(&mut self, iter: I, child: &Rc<TreeNode<E>>);
 }
 
-impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
+impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
     fn get_keys(&self) -> BTreeSet<Rc<E>> {
         BTreeSet::from_iter(self.keys().map(Rc::clone))
     }
 
-    fn get_child(&self, key: &E) -> Option<Rc<TreeNode<E>>> {
+    fn get_child(&self, key: &Rc<E>) -> Option<Rc<TreeNode<E>>> {
         let child = self.get(key)?;
         Some(Rc::clone(child))
     }
@@ -87,6 +88,12 @@ impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
         }
 
         set
+    }
+
+    fn insert_child<I: Iterator<Item = &'a Rc<E>>>(&mut self, iter: I, child: &Rc<TreeNode<E>>) {
+        for key in iter {
+            self.insert(Rc::clone(key), Rc::clone(child));
+        }
     }
 }
 
@@ -167,18 +174,14 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         })
     }
 
+    #[inline]
     fn insert_r_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, r_child: &Rc<Self>) {
-        let mut r_children = self.r_children.borrow_mut();
-        for key in iter {
-            r_children.insert(Rc::clone(key), Rc::clone(r_child));
-        }
+        self.r_children.borrow_mut().insert_child(iter, r_child);
     }
 
+    #[inline]
     fn insert_v_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, v_child: &Rc<Self>) {
-        let mut v_children = self.v_children.borrow_mut();
-        for key in iter {
-            v_children.insert(Rc::clone(key), Rc::clone(v_child));
-        }
+        self.v_children.borrow_mut().insert_child(iter, v_child);
     }
 
     fn delete_v_children<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I) {
