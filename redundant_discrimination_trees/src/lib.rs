@@ -13,11 +13,35 @@ impl ItemTraits for &str {}
 type ChildMap<E> = BTreeMap<Rc<E>, Rc<TreeNode<E>>>;
 type ChildAndKeys<E> = (Rc<TreeNode<E>>, BTreeSet<Rc<E>>);
 
+#[derive(Ord, Eq)]
+struct ChildAndKeysStruct<E: ItemTraits>(ChildAndKeys<E>);
+
+impl<E: ItemTraits> PartialEq for ChildAndKeysStruct<E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl<E: ItemTraits> PartialOrd for ChildAndKeysStruct<E> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<E: ItemTraits> Debug for ChildAndKeysStruct<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let elements = &self.0 .0.elements;
+        let keys = &self.0 .1;
+        writeln!(f, "{keys:?} -> TreeNode: {elements:?}")
+    }
+}
+
 trait ChildMapOps<E: ItemTraits> {
     fn get_keys(&self) -> BTreeSet<Rc<E>>;
     fn get_child(&self, key: &E) -> Option<Rc<TreeNode<E>>>;
     fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>>;
     fn get_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>>;
+    fn get_children_and_keys(&self) -> BTreeSet<ChildAndKeysStruct<E>>;
 }
 
 impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
@@ -51,6 +75,19 @@ impl<E: ItemTraits> ChildMapOps<E> for ChildMap<E> {
         let child_keys = self.get_child_keys(child);
         Some((Rc::clone(child), child_keys))
     }
+
+    fn get_children_and_keys(&self) -> BTreeSet<ChildAndKeysStruct<E>> {
+        let mut set = BTreeSet::new();
+
+        let mut keys = self.get_keys();
+        while let Some(key) = keys.first() {
+            let child_and_keys = self.get_child_and_keys(key).unwrap();
+            keys = &keys - &child_and_keys.1;
+            set.insert(ChildAndKeysStruct(child_and_keys));
+        }
+
+        set
+    }
 }
 
 struct TreeNode<E: ItemTraits> {
@@ -64,8 +101,8 @@ struct TreeNode<E: ItemTraits> {
 impl<E: ItemTraits> Debug for TreeNode<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let elements = &self.elements;
-        let r_children = self.get_r_children();
-        let v_children = self.get_v_children();
+        let r_children = self.r_children.borrow().get_children_and_keys();
+        let v_children = self.v_children.borrow().get_children_and_keys();
         writeln!(
             f,
             "TreeNode: {elements:?}[{}, {}] Real Children: {r_children:?} VirtualChildren: {v_children:?}",
@@ -137,40 +174,11 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
-    // TODO: change this to return keys and child pair
-    fn get_r_children(&self) -> BTreeSet<BTreeSet<Rc<E>>> {
-        let mut set = BTreeSet::new();
-        let r_children = self.r_children.borrow();
-
-        let mut r_keys = r_children.get_keys();
-        while let Some(r_key) = r_keys.first() {
-            let r_child = r_children.get(r_key).unwrap();
-            let r_child_keys = r_children.get_child_keys(r_child);
-            set.insert(r_child.elements.clone());
-            r_keys = &r_keys - &r_child_keys;
-        }
-        set
-    }
-
     fn insert_v_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, v_child: &Rc<Self>) {
         let mut v_children = self.v_children.borrow_mut();
         for key in iter {
             v_children.insert(Rc::clone(key), Rc::clone(v_child));
         }
-    }
-
-    fn get_v_children(&self) -> BTreeSet<BTreeSet<Rc<E>>> {
-        let mut set = BTreeSet::new();
-        let v_children = self.v_children.borrow();
-
-        let mut v_keys = v_children.get_keys();
-        while let Some(v_key) = v_keys.first() {
-            let v_child = v_children.get(v_key).unwrap();
-            let v_child_keys = v_children.get_child_keys(v_child);
-            set.insert(v_child.elements.clone());
-            v_keys = &v_keys - &v_child_keys;
-        }
-        set
     }
 
     fn delete_v_children<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I) {
