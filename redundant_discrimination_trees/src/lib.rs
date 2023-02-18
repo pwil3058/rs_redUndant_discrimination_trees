@@ -157,7 +157,6 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     }
 
     pub fn new_insert(elements: BTreeSet<Rc<E>>) -> Rc<Self> {
-        println!("NEW_INSERT({elements:?})");
         Rc::new(Self {
             insert_count: Cell::new(1),
             elements,
@@ -249,7 +248,6 @@ impl<E: ItemTraits> TreeNode<E> {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
-        println!("IRVC: NEW_SUBSET({elements:?})");
         let new_node = Self::new_subset(elements, v_children);
         r_child.insert_r_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(r_child_keys.iter(), &new_node);
@@ -260,7 +258,6 @@ impl<E: ItemTraits> TreeNode<E> {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
-        println!("SPLIT({self:?}, {key:?}, {excerpt:?}): NEW_SUBSET({elements:?})");
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(excerpt.intersection(&r_child_keys), &new_node);
@@ -304,7 +301,6 @@ impl<E: ItemTraits> TreeNode<E> {
         let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
         let elements = &v_child.elements - excerpt;
         let v_children = v_child.merged_children();
-        println!("IFVC: NEW_SUBSET({elements:?})");
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(v_child.elements.difference(&new_node.elements), &v_child);
         self.insert_r_child(excerpt.intersection(&v_child_keys), &new_node);
@@ -430,7 +426,6 @@ trait Engine<E: ItemTraits>: Sized {
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
     fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>) {
-        println!("Absorb({excerpt:?}): {self:?}");
         let keys = excerpt - &self.elements;
         if keys.is_empty() {
             *new_insert_is = Some(Rc::clone(self));
@@ -515,7 +510,6 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     }
 
     pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
-        println!("Insert({raw_excerpt:?})");
         let excerpt = self.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&excerpt, &self.root);
@@ -531,7 +525,6 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let mut matched_node = Rc::clone(&self.root);
         // NB: even though root.elements is always empty we do this to get the right type of Iterator
         while let Some(key) = (query.oso_iter() - matched_node.elements.oso_iter()).next() {
-            println!("Match: {matched_node:?}");
             if let Some(r_child) = matched_node.get_r_child(key) {
                 matched_node = r_child;
             } else if let Some(v_child) = matched_node.get_v_child(key) {
