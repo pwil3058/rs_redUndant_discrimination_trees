@@ -1,5 +1,4 @@
 use ord_set_ops_iter::adapter::{OrdSetOpsMapAdaption, OrdSetOpsSetAdaption};
-use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -424,7 +423,8 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
 }
 
 #[derive(Default, PartialOrd, PartialEq, Ord, Eq, Debug)]
-pub struct SimpleAnswer {
+pub struct Answer<E: ItemTraits> {
+    pub set: BTreeSet<Rc<E>>,
     pub insert_count: usize,
     pub subset_count: usize,
 }
@@ -455,7 +455,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         excerpt
     }
 
-    pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) {
+    pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
         println!("Insert({raw_excerpt:?})");
         let excerpt = self.convert(raw_excerpt);
         self.root
@@ -464,9 +464,10 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let mut new_insert_is: Option<Rc<TreeNode<E>>> = None;
         self.root.absorb(&excerpt, &mut new_insert_is);
         debug_assert!(self.root.verify_tree());
+        excerpt
     }
 
-    pub fn complete_match(&self, query: BTreeSet<E>) -> Option<SimpleAnswer> {
+    pub fn complete_match(&self, query: BTreeSet<E>) -> Option<Answer<E>> {
         let query = self.convert(query);
         let mut matched_node = Rc::clone(&self.root);
         // NB: even though root.elements is always empty we do this to get the right type of Iterator
@@ -485,7 +486,8 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         }
         let insert_count = matched_node.insert_count.get();
         let subset_count = matched_node.subset_count.get();
-        Some(SimpleAnswer {
+        Some(Answer {
+            set: query,
             insert_count,
             subset_count,
         })
@@ -547,53 +549,58 @@ mod tests {
     #[test]
     fn it_works() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
-        let excerpt = BTreeSet::from(["a", "b", "c", "d"]);
         assert!(rdt
             .complete_match(BTreeSet::from(["a", "b", "c", "d"]))
             .is_none());
-        rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
+        let abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abcd.clone(),
                 insert_count: 1,
                 subset_count: 0
             })
         );
 
-        rdt.insert(BTreeSet::from(["a", "b", "c"]));
+        let abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abcd.clone(),
                 insert_count: 1,
                 subset_count: 0
             })
         );
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abc.clone(),
                 insert_count: 1,
                 subset_count: 1
             })
         );
 
-        rdt.insert(BTreeSet::from(["a", "b", "d"]));
+        let abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abcd.clone(),
                 insert_count: 1,
                 subset_count: 0
             })
         );
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "c"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abc.clone(),
                 insert_count: 1,
                 subset_count: 1
             })
         );
         assert_eq!(
             rdt.complete_match(BTreeSet::from(["a", "b", "d"])),
-            Some(SimpleAnswer {
+            Some(Answer {
+                set: abd.clone(),
                 insert_count: 1,
                 subset_count: 1
             })
