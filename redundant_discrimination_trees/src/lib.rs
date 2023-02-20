@@ -180,12 +180,101 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
-    fn incr_excerpt_count(&self) {
+    fn incr_insert_count(&self) {
         self.insert_count.set(self.insert_count.get() + 1)
     }
 
-    fn incr_epitome_count(&self) {
+    fn incr_subset_count(&self) {
         self.subset_count.set(self.subset_count.get() + 1)
+    }
+
+    fn is_real_path_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
+        if !self.elements.is_subset(set) {
+            println!("{self:?} elements are not a subset of {set:?}");
+            false
+        } else {
+            let mut mut_set = set.clone();
+            while let Some(key) = mut_set.pop_first() {
+                if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
+                    if !r_child_keys.is_subset(set) {
+                        println!("{self:?}: Real child keys {r_child_keys:?} are not a subset of {set:?}");
+                        return false;
+                    }
+                    mut_set = &mut_set - &r_child_keys;
+                }
+            }
+            true
+        }
+    }
+
+    fn is_recursive_real_path_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
+        if self.is_real_path_compatible_with(excerpt) {
+            let mut keys = excerpt - &self.elements;
+            while let Some(key) = keys.pop_first() {
+                if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
+                    if !r_child.is_recursive_real_path_compatible_with(excerpt) {
+                        return false;
+                    }
+                    keys = &keys - &r_child_keys;
+                }
+            }
+            true
+        } else {
+            println!("{self:?}) is real path incompatible with {excerpt:?}");
+            false
+        }
+    }
+
+    fn is_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
+        if !self.elements.is_subset(set) {
+            println!("{self:?} elements are not a subset of {set:?}");
+            false
+        } else {
+            let mut mut_set = set.clone();
+            while let Some(key) = mut_set.pop_first() {
+                if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
+                    if !r_child_keys.is_subset(set) {
+                        println!("{self:?}: Real child keys {r_child_keys:?} are not a subset of {set:?}");
+                        return false;
+                    }
+                    mut_set = &mut_set - &r_child_keys;
+                } else if let Some((_, v_child_keys)) = self.get_v_child_and_keys(&key) {
+                    if !v_child_keys.is_subset(set) {
+                        println!("{self:?}: Virtual child keys {v_child_keys:?} are not a subset of {set:?}");
+                        return false;
+                    }
+                    mut_set = &mut_set - &v_child_keys;
+                }
+            }
+            true
+        }
+    }
+
+    fn is_recursive_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
+        if &self.elements == excerpt {
+            return true;
+        } else if self.is_compatible_with(excerpt) {
+            let mut keys = excerpt - &self.elements;
+            while let Some(key) = keys.pop_first() {
+                if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
+                    if !r_child.is_recursive_compatible_with(excerpt) {
+                        println!("REAL CHILD");
+                        return false;
+                    }
+                    keys = &keys - &r_child_keys;
+                } else if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&key) {
+                    if !v_child.is_recursive_compatible_with(excerpt) {
+                        println!("VIRTUAL CHILD");
+                        return false;
+                    }
+                    keys = &keys - &v_child_keys;
+                }
+            }
+            true
+        } else {
+            println!("{self:?}) is incompatible with {excerpt:?}");
+            false
+        }
     }
 }
 
@@ -198,6 +287,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     #[inline]
     fn get_v_keys(&self) -> BTreeSet<Rc<E>> {
         self.v_children.borrow().get_keys()
+    }
+
+    // TODO: make this redundant by using oso technology
+    #[inline]
+    fn get_merged_keys(&self) -> BTreeSet<Rc<E>> {
+        &self.get_r_keys() | &self.get_v_keys()
     }
 
     #[inline]
@@ -245,12 +340,18 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm: 6.2
     fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
+        println!("interpose_for_real_compatibility({self:?}, {key:?}, {excerpt:?})");
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
         let new_node = Self::new_subset(elements, v_children);
-        r_child.insert_r_child(r_child.elements.difference(&new_node.elements), &r_child);
+        new_node.insert_r_child(r_child.elements.difference(&self.elements), &r_child);
         self.insert_r_child(r_child_keys.iter(), &new_node);
+        debug_assert!(
+            new_node.is_real_path_compatible_with(excerpt),
+            "{new_node:?} <> {excerpt:?}"
+        );
+        debug_assert!(self.is_real_path_compatible_with(excerpt));
     }
 
     // Algorithm 6.3
@@ -261,39 +362,50 @@ impl<E: ItemTraits> TreeNode<E> {
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(excerpt.intersection(&r_child_keys), &new_node);
+        debug_assert!(new_node.is_real_path_compatible_with(excerpt));
+        debug_assert!(self.is_real_path_compatible_with(excerpt));
     }
 
     // Algorithm 6.4
     #[allow(clippy::mutable_key_type)]
-    fn reorganize_paths_part1(
+    fn reorganise_descendants_for_real_path_compatibility(
         &self,
         excerpt: &BTreeSet<Rc<E>>,
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
+        debug_assert!(self.elements.is_subset(excerpt));
         let mut keys = BTreeSet::<Rc<E>>::from_iter(
             (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
         );
         while let Some(key) = keys.first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
-            let orig_r_child = &r_child;
+            let r_child_before = Rc::clone(&r_child);
             if !excerpt.is_superset(&r_child_keys) {
                 self.split(key, excerpt);
-                let r_child = self.get_r_child(key).unwrap();
-                r_child.fix_v_links_for_changes(changes);
-                base_node.fix_v_links_for_pair(&(Rc::clone(orig_r_child), Rc::clone(&r_child)));
-                changes.insert((Rc::clone(orig_r_child), Rc::clone(&r_child)));
+                let r_child_after = self.get_r_child(key).unwrap();
+                r_child_after.fix_v_links_for_changes(changes);
+                base_node
+                    .fix_v_links_for_pair(&(Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
+                changes.insert((Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
+                debug_assert!(self.is_real_path_compatible_with(excerpt));
             } else if !excerpt.is_superset(&(&r_child.elements - &self.elements)) {
                 self.interpose_for_real_compatibility(key, excerpt);
-                let r_child = self.get_r_child(key).unwrap();
-                r_child.fix_v_links_for_changes(changes);
-                base_node.fix_v_links_for_pair(&(Rc::clone(orig_r_child), Rc::clone(&r_child)));
-                changes.insert((Rc::clone(orig_r_child), Rc::clone(&r_child)));
+                let r_child_after = self.get_r_child(key).unwrap();
+                r_child_after.fix_v_links_for_changes(changes);
+                base_node
+                    .fix_v_links_for_pair(&(Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
+                changes.insert((Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
+                debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
             } else {
-                r_child.reorganize_paths_part1(excerpt, base_node, changes);
+                r_child.reorganise_descendants_for_real_path_compatibility(
+                    excerpt, base_node, changes,
+                );
+                debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
             }
             keys = &keys - &r_child_keys;
         }
+        debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
     }
 
     // Algorithm 6.6
@@ -309,7 +421,7 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm 6.7
     #[allow(clippy::mutable_key_type)]
-    fn reorganize_paths_part2(
+    fn reorganise_descendants_for_full_compatibility(
         &self,
         excerpt: &BTreeSet<Rc<E>>,
         base_node: &Rc<Self>,
@@ -329,23 +441,33 @@ impl<E: ItemTraits> TreeNode<E> {
                 base_node.fix_v_links_for_pair(&(Rc::clone(&v_child), Rc::clone(&r_child)));
                 changes.insert((Rc::clone(&v_child), Rc::clone(&r_child)));
                 keys = &keys - &r_child_keys;
+                debug_assert!(self.is_compatible_with(excerpt));
             }
         }
-        let mut keys: BTreeSet<Rc<E>> = (excerpt.oso_iter() & self.r_children.borrow().oso_keys())
-            .cloned()
-            .collect();
+        let mut keys = BTreeSet::from_iter(
+            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
+        );
         while let Some(key) = keys.first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
-            r_child.reorganize_paths_part2(excerpt, base_node, changes);
+            r_child.reorganise_descendants_for_full_compatibility(excerpt, base_node, changes);
             keys = &keys - &r_child_keys;
         }
+        debug_assert!(
+            self.is_compatible_with(excerpt),
+            "{self:?} is not compatible with {excerpt:?}"
+        );
     }
 
     #[allow(clippy::mutable_key_type)]
     fn reorganize_paths_for_compatibility(&self, excerpt: &BTreeSet<Rc<E>>, base_node: &Rc<Self>) {
         let mut changes = BTreeSet::<(Rc<Self>, Rc<Self>)>::new();
-        base_node.reorganize_paths_part1(excerpt, base_node, &mut changes);
-        base_node.reorganize_paths_part2(excerpt, base_node, &mut changes);
+        base_node.reorganise_descendants_for_real_path_compatibility(
+            excerpt,
+            base_node,
+            &mut changes,
+        );
+        debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
+        base_node.reorganise_descendants_for_full_compatibility(excerpt, base_node, &mut changes);
     }
 
     // Algorithm 6.9
@@ -356,9 +478,11 @@ impl<E: ItemTraits> TreeNode<E> {
                 for key in node2.elements.iter() {
                     if let Some(v_child) = self.get_v_child(key) {
                         if v_child == *node1 {
-                            self.v_children
+                            let overwritten = self
+                                .v_children
                                 .borrow_mut()
                                 .insert(Rc::clone(key), Rc::clone(node2));
+                            debug_assert!(overwritten.is_some());
                         }
                     }
                 }
@@ -398,57 +522,41 @@ impl<E: ItemTraits> TreeNode<E> {
         }
         RefCell::new(map)
     }
-
-    fn is_recursive_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
-        if self.elements.is_subset(excerpt) {
-            for key in excerpt.iter() {
-                if let Some(r_child) = self.get_r_child(key) {
-                    if !r_child.is_recursive_compatible_with(excerpt) {
-                        return false;
-                    }
-                } else if let Some(v_child) = self.get_v_child(key) {
-                    if !v_child.is_recursive_compatible_with(excerpt) {
-                        return false;
-                    }
-                }
-            }
-        } else {
-            return false;
-        }
-        true
-    }
 }
 
 trait Engine<E: ItemTraits>: Sized {
-    fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
+    fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
-    fn absorb(&self, excerpt: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>) {
-        let keys = excerpt - &self.elements;
+    fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>) {
+        debug_assert!(self.is_recursive_compatible_with(insertion));
+        let keys = insertion - &self.elements;
         if keys.is_empty() {
+            debug_assert_eq!(insertion, &self.elements);
             *new_insert_is = Some(Rc::clone(self));
-            self.incr_excerpt_count();
+            self.incr_insert_count();
         } else {
+            // Get these keys before any new child so that we don't double up
             let mut absorb_keys = &keys & &self.get_r_keys();
-            while let Some(j) = absorb_keys.first() {
-                let (r_child, r_child_keys) = self.get_r_child_and_keys(j).unwrap();
-                r_child.absorb(excerpt, new_insert_is);
-                absorb_keys = &absorb_keys - &r_child_keys;
-            }
-            let mut absorb_keys = &keys - &self.get_r_keys();
-            absorb_keys = &absorb_keys - &self.get_v_keys();
-            if !absorb_keys.is_empty() {
+            let unused_keys = &keys - &self.get_merged_keys();
+            if !unused_keys.is_empty() {
                 if let Some(new_node) = new_insert_is {
-                    self.insert_v_child(absorb_keys.iter(), new_node);
+                    debug_assert_eq!(&new_node.elements, insertion);
+                    self.insert_v_child(unused_keys.iter(), new_node);
                 } else {
-                    let new_node = TreeNode::<E>::new_insert(excerpt.clone());
-                    self.insert_r_child(absorb_keys.iter(), &new_node);
+                    let new_node = TreeNode::<E>::new_insert(insertion.clone());
+                    self.insert_r_child(unused_keys.iter(), &new_node);
                     *new_insert_is = Some(new_node);
                 }
             }
-            self.incr_epitome_count();
+            while let Some(key) = absorb_keys.first() {
+                let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
+                r_child.absorb(insertion, new_insert_is);
+                absorb_keys = &absorb_keys - &r_child_keys;
+            }
+            self.incr_subset_count();
         }
     }
 }
@@ -498,26 +606,27 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
     fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
-        let mut excerpt = BTreeSet::<Rc<E>>::new();
+        let mut insertion = BTreeSet::<Rc<E>>::new();
         while let Some(element) = raw_excerpt.pop_first() {
             if let Some(key) = self.root.find_key(&element) {
-                excerpt.insert(Rc::clone(&key));
+                insertion.insert(Rc::clone(&key));
             } else {
-                excerpt.insert(Rc::new(element));
+                insertion.insert(Rc::new(element));
             }
         }
-        excerpt
+        insertion
     }
 
     pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
-        let excerpt = self.convert(raw_excerpt);
+        let insertion = self.convert(raw_excerpt);
         self.root
-            .reorganize_paths_for_compatibility(&excerpt, &self.root);
-        debug_assert!(self.root.is_recursive_compatible_with(&excerpt));
+            .reorganize_paths_for_compatibility(&insertion, &self.root);
+        debug_assert!(self.root.is_recursive_compatible_with(&insertion));
         let mut new_insert_is: Option<Rc<TreeNode<E>>> = None;
-        self.root.absorb(&excerpt, &mut new_insert_is);
+        self.root.absorb(&insertion, &mut new_insert_is);
         debug_assert!(self.root.verify_tree());
-        excerpt
+        debug_assert!(self.root.elements.is_empty() && self.root.v_children.borrow().is_empty());
+        insertion
     }
 
     pub fn complete_match(&self, query: BTreeSet<E>) -> Option<Answer<E>> {
@@ -541,14 +650,13 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
             subset_count,
         })
     }
+
+    pub fn verify_tree(&self) -> bool {
+        self.root.verify_tree()
+    }
 }
 
 // Debug Helpers
-fn format_set<E: ItemTraits + Clone>(set: &BTreeSet<Rc<E>>) -> String {
-    let v: Vec<&Rc<E>> = set.iter().collect();
-    format!("{v:?}")
-}
-
 impl<E: ItemTraits> TreeNode<E> {
     fn verify_tree_node(&self) -> bool {
         let mut result = true;
@@ -556,38 +664,51 @@ impl<E: ItemTraits> TreeNode<E> {
         let v_keys = self.get_v_keys();
         if !r_keys.is_disjoint(&self.elements) {
             println!(
-                "FAIL: TreeNode: {:?} real keys overlap C {} <> {}",
+                "FAIL: TreeNode: {:?} Real Keys {r_keys:?} overlap  elements",
                 self.elements,
-                format_set(&r_keys),
-                format_set(&self.elements)
             );
             result = false;
         };
         if !v_keys.is_disjoint(&self.elements) {
             println!(
-                "FAIL: TreeNode: {:?} virtual keys overlap C {} <> {}",
+                "FAIL: TreeNode: {:?} Virtual Keys {r_keys:?} overlap  elements",
                 self.elements,
-                format_set(&v_keys),
-                format_set(&self.elements)
             );
             result = false;
         };
         if !r_keys.is_disjoint(&v_keys) {
-            println!("FAIL: real and virtual child keys overlap {self:?}");
+            let overlap = &r_keys & &v_keys;
+            println!("FAIL:  {self:?} real and virtual child keys overlap: {overlap:?}");
             result = false;
         };
         result
     }
 
     fn verify_tree(&self) -> bool {
-        let mut result = self.verify_tree_node();
-        let mut keys = self.get_r_keys();
-        while let Some(key) = keys.first() {
-            let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
-            keys = &keys - &r_child_keys;
-            result = result && r_child.verify_tree();
+        if !self.verify_tree_node() {
+            println!("({self:?}).verify_tree_node() FAILED");
+            false
+        } else {
+            let mut keys = self.get_r_keys();
+            while let Some(key) = keys.first() {
+                let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
+                keys = &keys - &r_child_keys;
+                if !r_child.verify_tree() {
+                    println!("REAL: ({r_child:?}).verify_tree() FAILED");
+                    return false;
+                }
+            }
+            // let mut keys = self.get_v_keys();
+            // while let Some(key) = keys.first() {
+            //     let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
+            //     keys = &keys - &v_child_keys;
+            //     if !v_child.verify_tree() {
+            //         println!("VIRTUAL: ({v_child:?}).verify_tree() FAILED");
+            //         return false;
+            //     }
+            // }
+            true
         }
-        result
     }
 }
 
@@ -641,6 +762,109 @@ mod tests {
                 .unwrap()
                 .class(),
             Class::Both
+        );
+
+        let _ad = rdt.insert(BTreeSet::from(["a", "d"]));
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+    }
+
+    #[test]
+    fn it_works_in_reverse_order() {
+        let mut rdt = RedundantDiscriminationTree::<&str>::new();
+        assert!(rdt.complete_match(BTreeSet::from(["a", "d"])).is_none());
+        let _ad = rdt.insert(BTreeSet::from(["a", "d"]));
+        assert!(rdt.verify_tree(), "a,d");
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
+        );
+
+        let _abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
+        assert!(rdt.verify_tree(), "a,b, d");
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
+        );
+
+        let _abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
+        assert!(rdt.verify_tree(), "a,b, c");
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
+        );
+
+        let _abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
+        assert!(rdt.verify_tree(), "a,b, c, d");
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
+                .unwrap()
+                .class(),
+            Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
+                .unwrap()
+                .class(),
+            Class::Insertion
         );
     }
 }
