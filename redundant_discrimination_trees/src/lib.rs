@@ -340,17 +340,13 @@ impl<E: ItemTraits> TreeNode<E> {
 
     // Algorithm: 6.2
     fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
-        println!("interpose_for_real_compatibility({self:?}, {key:?}, {excerpt:?})");
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
         let new_node = Self::new_subset(elements, v_children);
-        new_node.insert_r_child(r_child.elements.difference(&self.elements), &r_child);
+        new_node.insert_r_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(r_child_keys.iter(), &new_node);
-        debug_assert!(
-            new_node.is_real_path_compatible_with(excerpt),
-            "{new_node:?} <> {excerpt:?}"
-        );
+        debug_assert!(new_node.is_real_path_compatible_with(excerpt));
         debug_assert!(self.is_real_path_compatible_with(excerpt));
     }
 
@@ -698,15 +694,15 @@ impl<E: ItemTraits> TreeNode<E> {
                     return false;
                 }
             }
-            // let mut keys = self.get_v_keys();
-            // while let Some(key) = keys.first() {
-            //     let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
-            //     keys = &keys - &v_child_keys;
-            //     if !v_child.verify_tree() {
-            //         println!("VIRTUAL: ({v_child:?}).verify_tree() FAILED");
-            //         return false;
-            //     }
-            // }
+            let mut keys = self.get_v_keys();
+            while let Some(key) = keys.first() {
+                let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
+                keys = &keys - &v_child_keys;
+                if !v_child.verify_tree() {
+                    println!("VIRTUAL: ({v_child:?}).verify_tree() FAILED");
+                    return false;
+                }
+            }
             true
         }
     }
