@@ -86,6 +86,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
     /// Is the output of the given Iterator disjoint from the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
     fn is_disjoint<I: PeepAdvanceIter<'a, T> + Clone>(mut self, mut other: Self) -> bool {
         loop {
             if let Some(my_item) = self.peep() {
@@ -112,6 +113,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
     /// Is the output of the given Iterator a proper subset of the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
     fn is_proper_subset(mut self, mut other: Self) -> bool {
         let mut result = false;
         while let Some(my_item) = self.peep() {
@@ -138,6 +140,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
     /// Is the output of the given Iterator a proper superset of the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
     fn is_proper_superset(mut self, mut other: Self) -> bool {
         let mut result = false;
         while let Some(my_item) = self.peep() {
@@ -164,6 +167,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
     /// Is the output of the given Iterator a subset of the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
     fn is_subset(mut self, mut other: Self) -> bool {
         while let Some(my_item) = self.peep() {
             if let Some(other_item) = other.peep() {
@@ -188,6 +192,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
     /// Is the output of the given Iterator a superset of the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
     fn is_superset(mut self, mut other: Self) -> bool {
         while let Some(my_item) = self.peep() {
             if let Some(other_item) = other.peep() {
@@ -213,23 +218,26 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
 
 pub enum OrdSetOpsIter<'a, T>
 where
-    T: 'a + Ord,
+    T: Ord,
 {
-    Difference(Box<Self>, Box<Self>),
-    Intersection(Box<Self>, Box<Self>),
-    SymmetricDifference(Box<Self>, Box<Self>),
-    Union(Box<Self>, Box<Self>),
-    Plain(Box<dyn PeepAdvanceIter<'a, T>>),
+    Difference(
+        Box<Self>,
+        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
+    ),
+    Intersection(
+        Box<Self>,
+        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
+    ),
+    SymmetricDifference(
+        Box<Self>,
+        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
+    ),
+    Union(
+        Box<Self>,
+        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
+    ),
+    Plain(Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>),
     _Phantom(Infallible, PhantomData<&'a T>),
-}
-
-impl<'a, T> OrdSetOpsIter<'a, T>
-where
-    T: 'a + Ord,
-{
-    pub fn new(iter: Box<dyn PeepAdvanceIter<'a, T>>) -> Self {
-        Self::Plain(iter.into())
-    }
 }
 
 impl<'a, T> PeepAdvanceIter<'a, T> for OrdSetOpsIter<'a, T>
@@ -516,13 +524,19 @@ mod tests {
     use super::*;
     //use crate::OrdSetOpsIterator;
 
-    struct Set<T: Ord>(Vec<T>);
+    struct Set<'a, T: 'a + Ord> {
+        vec: Vec<T>,
+        phantom: PhantomData<&'a T>,
+    }
 
-    impl<T: Ord + Clone> From<Vec<T>> for Set<T> {
+    impl<'a, T: Ord + Clone> From<Vec<T>> for Set<'a, T> {
         fn from(mut elements: Vec<T>) -> Self {
             elements.sort();
             elements.dedup();
-            Self(elements)
+            Self {
+                vec: elements,
+                phantom: PhantomData,
+            }
         }
     }
 
@@ -558,36 +572,19 @@ mod tests {
         }
     }
 
-    impl<'a, T: Ord + Clone> Set<T> {
-        pub fn iter(&self) -> OrdSetOpsIter<T> {
-            let set_iter = SetIter::<T> {
-                elements: &self.0,
+    impl<'a, T: 'a + Ord + Clone> Set<'a, T> {
+        pub fn iter(&'a self) -> SetIter<'a, T> {
+            SetIter {
+                elements: &self.vec,
                 index: 0,
-            };
-            // let wrapper = Wrapper {
-            //     iter: set_iter,
-            //     phantom: PhantomData,
-            // };
-            OrdSetOpsIter::Plain(Box::new(Box::new(set_iter)))
+            }
         }
-
-        // impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for SetIter<'a, T> {
-        //     fn difference(self, iter: Self) -> Self {}
-        // }
-
-        // pub fn is_superset(&self, other: &Self) -> bool {
-        //     self.iter().is_superset(other.iter())
-        // }
-        //
-        // pub fn is_subset(&self, other: &Self) -> bool {
-        //     self.iter().is_subset(other.iter())
-        // }
     }
 
     #[test]
     fn new_plain() {
         let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-        let mut oso_iter = OrdSetOpsIter::new(Box::new(set1.iter()));
+        let mut oso_iter = OrdSetOpsIter::Plain(Box::new(set1.iter()));
         assert_eq!(oso_iter.next(), Some(&"a"));
         assert_eq!(oso_iter.next(), Some(&"b"));
         assert_eq!(oso_iter.next(), Some(&"c"));
