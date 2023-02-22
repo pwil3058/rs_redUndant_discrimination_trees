@@ -1,4 +1,4 @@
-use ord_set_iter_set_ops::{self, MapOsoIterAdaption, SetOsoIterAdaption};
+use ord_set_iter_set_ops::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -509,6 +509,18 @@ impl<E: ItemTraits> TreeNode<E> {
         }
     }
 
+    fn is_disjoint_child_indices(&self, set: &BTreeSet<Rc<E>>) -> bool {
+        self.r_children
+            .borrow()
+            .oso_keys()
+            .is_disjoint(set.oso_iter())
+            && self
+                .v_children
+                .borrow()
+                .oso_keys()
+                .is_disjoint(set.oso_iter())
+    }
+
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
         let mut map = BTreeMap::new();
         for (key, v) in self.r_children.borrow().iter() {
@@ -522,7 +534,16 @@ impl<E: ItemTraits> TreeNode<E> {
 }
 
 trait Engine<E: ItemTraits>: Sized {
+    // Algorithm: 6.11
     fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
+    // Algorithm 6.14
+    fn partial_match(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>>;
+    // Algorithm 6.15
+    fn partial_match_after_key(
+        &self,
+        query: &BTreeSet<Rc<E>>,
+        key: &Rc<E>,
+    ) -> BTreeSet<Rc<TreeNode<E>>>;
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
@@ -555,6 +576,90 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             }
             self.incr_subset_count();
         }
+    }
+
+    // Algorithm 6.14
+    fn partial_match(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>> {
+        let mut partial_matches = BTreeSet::new();
+        if self.is_disjoint_child_indices(query) {
+            if !query.is_disjoint(&self.elements) {
+                partial_matches.insert(Rc::clone(self));
+            }
+        } else {
+            for query_element in query.difference(&self.elements) {
+                if let Some(child) = self.get_r_child(query_element) {
+                    let child_element = child
+                        .elements
+                        .oso_iter()
+                        .difference(self.elements.oso_iter())
+                        .intersection(query.oso_iter())
+                        .next()
+                        .unwrap();
+                    if query_element == child_element {
+                        partial_matches =
+                            &partial_matches | &child.partial_match_after_key(query, query_element);
+                    }
+                } else if let Some(child) = self.get_v_child(query_element) {
+                    let child_element = child
+                        .elements
+                        .oso_iter()
+                        .difference(self.elements.oso_iter())
+                        .intersection(query.oso_iter())
+                        .next()
+                        .unwrap();
+                    if query_element == child_element {
+                        partial_matches =
+                            &partial_matches | &child.partial_match_after_key(query, query_element);
+                    }
+                }
+            }
+        }
+        partial_matches
+    }
+
+    // Algorithm 6.15
+    fn partial_match_after_key(
+        &self,
+        query: &BTreeSet<Rc<E>>,
+        key: &Rc<E>,
+    ) -> BTreeSet<Rc<TreeNode<E>>> {
+        let mut partial_matches = BTreeSet::new();
+        if self.is_disjoint_child_indices(query) {
+            if !query.is_disjoint(&self.elements) {
+                partial_matches.insert(Rc::clone(self));
+            }
+        } else {
+            let mut query_elements = query.oso_iter().difference(self.elements.oso_iter());
+            query_elements.advance_until(key);
+            for query_element in query_elements {
+                if let Some(child) = self.get_r_child(query_element) {
+                    let child_element = child
+                        .elements
+                        .oso_iter()
+                        .difference(self.elements.oso_iter())
+                        .intersection(query.oso_iter())
+                        .next()
+                        .unwrap();
+                    if query_element == child_element {
+                        partial_matches =
+                            &partial_matches | &child.partial_match_after_key(query, query_element);
+                    }
+                } else if let Some(child) = self.get_v_child(query_element) {
+                    let child_element = child
+                        .elements
+                        .oso_iter()
+                        .difference(self.elements.oso_iter())
+                        .intersection(query.oso_iter())
+                        .next()
+                        .unwrap();
+                    if query_element == child_element {
+                        partial_matches =
+                            &partial_matches | &child.partial_match_after_key(query, query_element);
+                    }
+                }
+            }
+        }
+        partial_matches
     }
 }
 
@@ -630,9 +735,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let query = self.convert(query);
         let mut matched_node = Rc::clone(&self.root);
         // NB: even though root.elements is always empty we do this to get the right type of Iterator
-        while let Some(key) =
-            (query.oso_iter() - Rc::clone(&matched_node).elements.oso_iter()).next()
-        {
+        while let Some(key) = query.difference(&matched_node.elements).next() {
             if let Some(r_child) = matched_node.get_r_child(key) {
                 matched_node = r_child;
             } else if let Some(v_child) = matched_node.get_v_child(key) {

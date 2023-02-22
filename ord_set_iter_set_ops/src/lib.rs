@@ -16,6 +16,7 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
 
     /// Advance this iterator to the next item at or after the given item.
     /// Default implementation is O(n) but custom built implementations could be as good as O(log(n)).
+    // TODO: try to make advance_until() return &mut Self
     fn advance_until(&mut self, t: &T) {
         while let Some(item) = self.peep() {
             if t > item {
@@ -25,51 +26,13 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
             }
         }
     }
+
+    /// Get the next element equal to or greater than the target
+    fn next_or_after(&mut self, target: &T) -> Option<&'a T> {
+        self.advance_until(target);
+        self.next()
+    }
 }
-//
-// pub struct Wrapper<'a, T>
-// where
-//     T: 'a + Ord,
-//     I: PeepAdvanceIter<'a, T>,
-// {
-//     iter: I,
-//     phantom: PhantomData<&'a T>,
-// }
-//
-// impl<'a, T> From<I> for Wrapper<'a, T>
-// where
-//     T: 'a + Ord,
-//     I: PeepAdvanceIter<'a, T>,
-// {
-//     fn from(iter: I) -> Self {
-//         Wrapper {
-//             iter,
-//             phantom: PhantomData,
-//         }
-//     }
-// }
-//
-// impl<'a, T> Iterator for Wrapper<'a, T>
-// where
-//     T: 'a + Ord,
-//     I: PeepAdvanceIter<'a, T>,
-// {
-//     type Item = &'a T;
-//
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.iter.next()
-//     }
-// }
-//
-// impl<'a, T> PeepAdvanceIter<'a, T> for Wrapper<'a, T>
-// where
-//     T: 'a + Ord,
-//     I: PeepAdvanceIter<'a, T>,
-// {
-//     fn peep(&mut self) -> Option<&'a T> {
-//         self.iter.peep()
-//     }
-// }
 
 pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
     /// Iterate over the set difference of this Iterator and the given Iterator
@@ -91,7 +54,7 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
     /// Is the output of the given Iterator disjoint from the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
-    fn is_disjoint<I: PeepAdvanceIter<'a, T> + Clone>(mut self, mut other: Self) -> bool {
+    fn is_disjoint(mut self, mut other: Self) -> bool {
         loop {
             if let Some(my_item) = self.peep() {
                 if let Some(other_item) = other.peep() {
@@ -569,6 +532,22 @@ where
     I: Iterator<Item = &'a T> + Clone,
 {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T>;
+
+    fn oso_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().difference(other.oso_iter())
+    }
+
+    fn oso_intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().intersection(other.oso_iter())
+    }
+
+    fn oso_symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().symmetric_difference(other.oso_iter())
+    }
+
+    fn oso_union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().union(other.oso_iter())
+    }
 }
 
 impl<'a, T: 'a + Ord + Clone> SetOsoIterAdaption<'a, T, btree_set::Iter<'a, T>> for BTreeSet<T> {
@@ -665,13 +644,21 @@ mod tests {
     #[test]
     fn oso_iter() {
         let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-        //let mut oso_iter = OrdSetOpsIter::Plain(Box::new(set1.iter()));
         let mut oso_iter = set1.oso_iter();
         assert_eq!(oso_iter.next(), Some(&"a"));
         assert_eq!(oso_iter.next(), Some(&"b"));
         assert_eq!(oso_iter.next(), Some(&"c"));
         assert_eq!(oso_iter.next(), Some(&"d"));
         assert_eq!(oso_iter.next(), None);
+    }
+
+    #[test]
+    fn advance_until() {
+        let set1 = Set::<&str>::from(vec!["a", "b", "c", "d", "e", "f"]);
+        let mut oso_iter = set1.oso_iter();
+        oso_iter.advance_until(&"c");
+        assert_eq!(oso_iter.next(), Some(&"c"));
+        assert_eq!(oso_iter.next_or_after(&"e"), Some(&"e"));
     }
 
     #[test]
