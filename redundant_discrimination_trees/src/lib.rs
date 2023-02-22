@@ -1,4 +1,4 @@
-use ord_set_ops_iter::adapter::{OrdSetOpsMapAdaption, OrdSetOpsSetAdaption};
+use ord_set_iter_set_ops::{self, MapOsoIterAdaption, SetOsoIterAdaption};
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -630,7 +630,9 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let query = self.convert(query);
         let mut matched_node = Rc::clone(&self.root);
         // NB: even though root.elements is always empty we do this to get the right type of Iterator
-        while let Some(key) = (query.oso_iter() - matched_node.elements.oso_iter()).next() {
+        while let Some(key) =
+            (query.oso_iter() - Rc::clone(&matched_node).elements.oso_iter()).next()
+        {
             if let Some(r_child) = matched_node.get_r_child(key) {
                 matched_node = r_child;
             } else if let Some(v_child) = matched_node.get_v_child(key) {
@@ -646,6 +648,10 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
             insert_count,
             subset_count,
         })
+    }
+
+    pub fn partial_matches(&self, _query: &BTreeSet<E>) -> BTreeSet<Answer<E>> {
+        BTreeSet::new()
     }
 
     pub fn verify_tree(&self) -> bool {

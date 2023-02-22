@@ -6,4 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ord_set_ops_iter = {path = "/home/peter/GitHub/rs_ord_set_ops_iter/ord_set_ops_iter"}
+#ord_set_ops_iter = {path = "/home/peter/GitHub/rs_ord_set_ops_iter/ord_set_ops_iter"}
+ord_set_iter_set_ops = {path = "../ord_set_iter_set_ops"}
