@@ -247,19 +247,19 @@ where
     fn peep(&mut self) -> Option<&'a T> {
         use OrdSetOpsIter::*;
         match self {
-            Difference(ref mut l_iter, ref mut r_iter) => {
-                while let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Difference(ref mut self_iter, ref mut other_iter) => {
+                while let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
                                 return Some(l_item);
                             }
                             Ordering::Greater => {
-                                r_iter.advance_until(l_item);
+                                other_iter.advance_until(l_item);
                             }
                             Ordering::Equal => {
-                                l_iter.next();
-                                r_iter.next();
+                                self_iter.next();
+                                other_iter.next();
                             }
                         }
                     } else {
@@ -268,17 +268,17 @@ where
                 }
                 None
             }
-            Intersection(ref mut l_iter, ref mut r_iter) => {
-                if let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Intersection(ref mut self_iter, ref mut other_iter) => {
+                if let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
-                                l_iter.advance_until(r_item);
-                                l_iter.peep()
+                                self_iter.advance_until(r_item);
+                                self_iter.peep()
                             }
                             Ordering::Greater => {
-                                r_iter.advance_until(l_item);
-                                r_iter.peep()
+                                other_iter.advance_until(l_item);
+                                other_iter.peep()
                             }
                             Ordering::Equal => Some(l_item),
                         }
@@ -289,9 +289,9 @@ where
                     None
                 }
             }
-            SymmetricDifference(ref mut l_iter, ref mut r_iter) => {
-                while let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            SymmetricDifference(ref mut self_iter, ref mut other_iter) => {
+                while let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
                                 return Some(l_item);
@@ -300,19 +300,19 @@ where
                                 return Some(r_item);
                             }
                             Ordering::Equal => {
-                                l_iter.next();
-                                r_iter.next();
+                                self_iter.next();
+                                other_iter.next();
                             }
                         }
                     } else {
                         return Some(l_item);
                     }
                 }
-                r_iter.peep()
+                other_iter.peep()
             }
-            Union(ref mut l_iter, ref mut r_iter) => {
-                if let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Union(ref mut self_iter, ref mut other_iter) => {
+                if let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less | Ordering::Equal => Some(l_item),
                             Ordering::Greater => Some(r_item),
@@ -321,7 +321,7 @@ where
                         Some(l_item)
                     }
                 } else {
-                    r_iter.peep()
+                    other_iter.peep()
                 }
             }
             Plain(ref mut iter) => iter.peep(),
@@ -331,21 +331,21 @@ where
 
     fn advance_until(&mut self, target: &T) {
         match self {
-            Self::Difference(ref mut l_iter, ref mut r_iter) => {
-                l_iter.advance_until(target);
-                r_iter.advance_until(target);
+            Self::Difference(ref mut self_iter, ref mut other_iter) => {
+                self_iter.advance_until(target);
+                other_iter.advance_until(target);
             }
-            Self::Intersection(ref mut l_iter, ref mut r_iter) => {
-                l_iter.advance_until(target);
-                r_iter.advance_until(target);
+            Self::Intersection(ref mut self_iter, ref mut other_iter) => {
+                self_iter.advance_until(target);
+                other_iter.advance_until(target);
             }
-            Self::SymmetricDifference(ref mut l_iter, ref mut r_iter) => {
-                l_iter.advance_until(target);
-                r_iter.advance_until(target);
+            Self::SymmetricDifference(ref mut self_iter, ref mut other_iter) => {
+                self_iter.advance_until(target);
+                other_iter.advance_until(target);
             }
-            Self::Union(ref mut l_iter, ref mut r_iter) => {
-                l_iter.advance_until(target);
-                r_iter.advance_until(target);
+            Self::Union(ref mut self_iter, ref mut other_iter) => {
+                self_iter.advance_until(target);
+                other_iter.advance_until(target);
             }
             Self::Plain(ref mut iter) => {
                 iter.advance_until(target);
@@ -384,40 +384,40 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Self::Difference(ref mut l_iter, ref mut r_iter) => {
-                while let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Self::Difference(ref mut self_iter, ref mut other_iter) => {
+                while let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
-                                return l_iter.next();
+                                return self_iter.next();
                             }
                             Ordering::Greater => {
-                                r_iter.advance_until(l_item);
+                                other_iter.advance_until(l_item);
                             }
                             Ordering::Equal => {
-                                l_iter.next();
-                                r_iter.next();
+                                self_iter.next();
+                                other_iter.next();
                             }
                         }
                     } else {
-                        return l_iter.next();
+                        return self_iter.next();
                     }
                 }
                 None
             }
-            Self::Intersection(ref mut l_iter, ref mut r_iter) => {
-                while let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Self::Intersection(ref mut self_iter, ref mut other_iter) => {
+                while let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
-                                l_iter.advance_until(r_item);
+                                self_iter.advance_until(r_item);
                             }
                             Ordering::Greater => {
-                                r_iter.advance_until(l_item);
+                                other_iter.advance_until(l_item);
                             }
                             Ordering::Equal => {
-                                r_iter.next();
-                                return l_iter.next();
+                                other_iter.next();
+                                return self_iter.next();
                             }
                         }
                     } else {
@@ -426,43 +426,43 @@ where
                 }
                 None
             }
-            Self::SymmetricDifference(ref mut l_iter, ref mut r_iter) => {
-                while let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Self::SymmetricDifference(ref mut self_iter, ref mut other_iter) => {
+                while let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
-                                return l_iter.next();
+                                return self_iter.next();
                             }
                             Ordering::Greater => {
-                                return r_iter.next();
+                                return other_iter.next();
                             }
                             Ordering::Equal => {
-                                l_iter.next();
-                                r_iter.next();
+                                self_iter.next();
+                                other_iter.next();
                             }
                         }
                     } else {
-                        return l_iter.next();
+                        return self_iter.next();
                     }
                 }
-                r_iter.next()
+                other_iter.next()
             }
-            Self::Union(ref mut l_iter, ref mut r_iter) => {
-                if let Some(l_item) = l_iter.peep() {
-                    if let Some(r_item) = r_iter.peep() {
+            Self::Union(ref mut self_iter, ref mut other_iter) => {
+                if let Some(l_item) = self_iter.peep() {
+                    if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
-                            Ordering::Less => l_iter.next(),
-                            Ordering::Greater => r_iter.next(),
+                            Ordering::Less => self_iter.next(),
+                            Ordering::Greater => other_iter.next(),
                             Ordering::Equal => {
-                                r_iter.next();
-                                l_iter.next()
+                                other_iter.next();
+                                self_iter.next()
                             }
                         }
                     } else {
-                        l_iter.next()
+                        self_iter.next()
                     }
                 } else {
-                    r_iter.next()
+                    other_iter.next()
                 }
             }
             Self::Plain(ref mut iter) => iter.next(),
