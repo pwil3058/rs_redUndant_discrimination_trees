@@ -1,5 +1,9 @@
 use std::{
     cmp::Ordering,
+    collections::{
+        btree_map::{self, BTreeMap},
+        btree_set::{self, BTreeSet},
+    },
     convert::Infallible,
     marker::PhantomData,
     ops::{BitAnd, BitOr, BitXor, Sub},
@@ -519,6 +523,77 @@ where
     }
 }
 
+pub struct PeepAdvanceAdapter<I: Iterator> {
+    iter: I,
+    next_result: Option<I::Item>,
+}
+
+impl<I: Iterator> From<I> for PeepAdvanceAdapter<I> {
+    fn from(mut iter: I) -> Self {
+        let next_result = iter.next();
+        Self { iter, next_result }
+    }
+}
+
+impl<I: Iterator> Iterator for PeepAdvanceAdapter<I>
+where
+    I::Item: Clone,
+{
+    type Item = <I as Iterator>::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(result) = self.next_result.clone() {
+            self.next_result = self.iter.next();
+            Some(result)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T, I> PeepAdvanceIter<'a, T> for PeepAdvanceAdapter<I>
+where
+    T: Ord + 'a + Clone,
+    I: Iterator<Item = &'a T> + Clone,
+{
+    #[inline]
+    fn peep(&mut self) -> Option<&'a T> {
+        self.next_result.clone()
+    }
+}
+
+pub trait SetOsoIterAdaption<'a, T: 'a + Ord, I>
+where
+    T: 'a + Ord + Clone,
+    I: Iterator<Item = &'a T> + Clone,
+{
+    fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T>;
+}
+
+impl<'a, T: 'a + Ord + Clone> SetOsoIterAdaption<'a, T, btree_set::Iter<'a, T>> for BTreeSet<T> {
+    fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
+        OrdSetOpsIter::Plain(Box::new(PeepAdvanceAdapter::from(self.iter())))
+    }
+}
+
+pub trait MapOsoIterAdaption<'a, K, I>
+where
+    K: 'a + Ord + Clone,
+    I: Iterator<Item = &'a K> + Clone,
+{
+    fn oso_keys(&'a self) -> OrdSetOpsIter<'a, K>;
+}
+
+impl<'a, K, V> MapOsoIterAdaption<'a, K, btree_map::Keys<'a, K, V>> for BTreeMap<K, V>
+where
+    K: 'a + Ord + Clone,
+{
+    fn oso_keys(&'a self) -> OrdSetOpsIter<'a, K> {
+        OrdSetOpsIter::Plain(Box::new(PeepAdvanceAdapter::from(self.keys())))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,10 +656,17 @@ mod tests {
         }
     }
 
+    impl<'a, T: 'a + Ord + Clone> SetOsoIterAdaption<'a, T, btree_set::Iter<'a, T>> for Set<'a, T> {
+        fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
+            OrdSetOpsIter::Plain(Box::new(self.iter()))
+        }
+    }
+
     #[test]
-    fn new_plain() {
+    fn oso_iter() {
         let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-        let mut oso_iter = OrdSetOpsIter::Plain(Box::new(set1.iter()));
+        //let mut oso_iter = OrdSetOpsIter::Plain(Box::new(set1.iter()));
+        let mut oso_iter = set1.oso_iter();
         assert_eq!(oso_iter.next(), Some(&"a"));
         assert_eq!(oso_iter.next(), Some(&"b"));
         assert_eq!(oso_iter.next(), Some(&"c"));
@@ -592,99 +674,25 @@ mod tests {
         assert_eq!(oso_iter.next(), None);
     }
 
-    // #[test]
-    // fn can_make_oso_iter() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let iter = Box::new(set1.iter());
-    //     let oso_iter1 = OrdSetOpsIter::Plain(iter);
-    //     let x = oso_iter1.next();
-    // }
+    #[test]
+    fn oso_iter_b_tree_set() {
+        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
+        let mut oso_iter = set1.oso_iter();
+        assert_eq!(oso_iter.next(), Some(&"a"));
+        assert_eq!(oso_iter.next(), Some(&"b"));
+        assert_eq!(oso_iter.next(), Some(&"c"));
+        assert_eq!(oso_iter.next(), Some(&"d"));
+        assert_eq!(oso_iter.next(), None);
+    }
 
-    // #[test]
-    // fn set_relations() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let set2 = Set::<&str>::from(vec!["b", "c", "d"]);
-    //     assert!(set1.is_superset(&set2));
-    //     assert!(!set1.is_subset(&set2));
-    // }
-    //
-    // #[test]
-    // fn set_difference() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let set2 = Set::<&str>::from(vec!["b", "c", "d", "e"]);
-    //     assert_eq!(
-    //         vec!["a"],
-    //         (set1.iter().difference(set2.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    //     assert_eq!(
-    //         vec!["e"],
-    //         (set2.iter().difference(set1.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    // }
-    //
-    // #[test]
-    // fn set_intersection() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let set2 = Set::<&str>::from(vec!["b", "c", "d", "e"]);
-    //     assert_eq!(
-    //         vec!["b", "c", "d"],
-    //         (set1.iter().intersection(set2.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    //     assert_eq!(
-    //         vec!["b", "c", "d"],
-    //         (set2.iter().intersection(set1.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    //     let set1 = Set::<u32>::from(vec![1, 2, 3, 5]);
-    //     let set2 = Set::<u32>::from(vec![2, 3, 4]);
-    //     assert_eq!(
-    //         vec![2, 3],
-    //         (set2.iter().intersection(set1.iter()))
-    //             .cloned()
-    //             .collect::<Vec<u32>>()
-    //     );
-    // }
-    //
-    // #[test]
-    // fn set_symmetric_difference() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let set2 = Set::<&str>::from(vec!["b", "c", "d", "e"]);
-    //     assert_eq!(
-    //         vec!["a", "e"],
-    //         (set1.iter().symmetric_difference(set2.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    //     assert_eq!(
-    //         vec!["a", "e"],
-    //         (set2.iter().symmetric_difference(set1.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    // }
-    //
-    // #[test]
-    // fn set_union() {
-    //     let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-    //     let set2 = Set::<&str>::from(vec!["b", "c", "d", "e"]);
-    //     assert_eq!(
-    //         vec!["a", "b", "c", "d", "e"],
-    //         (set1.iter().union(set2.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    //     assert_eq!(
-    //         vec!["a", "b", "c", "d", "e"],
-    //         (set2.iter().union(set1.iter()))
-    //             .cloned()
-    //             .collect::<Vec<&str>>()
-    //     );
-    // }
+    #[test]
+    fn oso_iter_b_tree_map() {
+        let set1 = BTreeMap::<&str, i32>::from([("a", 1), ("b", 2), ("c", 3), ("d", 4)]);
+        let mut oso_iter = set1.oso_keys();
+        assert_eq!(oso_iter.next(), Some(&"a"));
+        assert_eq!(oso_iter.next(), Some(&"b"));
+        assert_eq!(oso_iter.next(), Some(&"c"));
+        assert_eq!(oso_iter.next(), Some(&"d"));
+        assert_eq!(oso_iter.next(), None);
+    }
 }
