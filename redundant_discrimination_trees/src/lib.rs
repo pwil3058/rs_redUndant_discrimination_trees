@@ -13,6 +13,7 @@ impl ItemTraits for &str {}
 type ChildMap<E> = BTreeMap<Rc<E>, Rc<TreeNode<E>>>;
 type ChildAndKeys<E> = (Rc<TreeNode<E>>, BTreeSet<Rc<E>>);
 
+#[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Ord, Eq)]
 struct ChildAndKeysStruct<E: ItemTraits>(ChildAndKeys<E>);
 
@@ -252,7 +253,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
 
     fn is_recursive_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
         if &self.elements == excerpt {
-            return true;
+            true
         } else if self.is_compatible_with(excerpt) {
             let mut keys = excerpt - &self.elements;
             while let Some(key) = keys.pop_first() {
