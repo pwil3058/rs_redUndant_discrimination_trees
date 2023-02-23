@@ -629,9 +629,11 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                 partial_matches.insert(Rc::clone(self));
             }
         } else {
-            let mut query_elements = query.oso_iter().difference(self.elements.oso_iter());
-            query_elements.advance_until(key);
-            for query_element in query_elements {
+            while let Some(query_element) = query
+                .oso_iter()
+                .difference(self.elements.oso_iter())
+                .next_at_or_after(key)
+            {
                 if let Some(child) = self.get_r_child(query_element) {
                     let child_element = child
                         .elements

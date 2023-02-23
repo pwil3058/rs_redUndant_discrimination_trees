@@ -5,6 +5,7 @@ use std::{
         btree_set::{self, BTreeSet},
     },
     convert::Infallible,
+    iter::Peekable,
     marker::PhantomData,
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
@@ -28,9 +29,58 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
     }
 
     /// Get the next element equal to or greater than the target
-    fn next_or_after(&mut self, target: &T) -> Option<&'a T> {
-        self.advance_until(target);
-        self.next()
+    fn next_at_or_after(&mut self, target: &T) -> Option<&'a T> {
+        self.skip_while(|x| x < &target).next()
+    }
+}
+
+pub struct PeepAdvanceAdapter<I: Iterator> {
+    iter: I,
+    next_result: Option<I::Item>,
+}
+
+impl<I: Iterator> From<I> for PeepAdvanceAdapter<I> {
+    fn from(mut iter: I) -> Self {
+        let next_result = iter.next();
+        Self { iter, next_result }
+    }
+}
+
+impl<I: Iterator> Iterator for PeepAdvanceAdapter<I>
+where
+    I::Item: Clone,
+{
+    type Item = <I as Iterator>::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(result) = self.next_result.clone() {
+            self.next_result = self.iter.next();
+            Some(result)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T, I> PeepAdvanceIter<'a, T> for PeepAdvanceAdapter<I>
+where
+    T: Ord + 'a + Clone,
+    I: Iterator<Item = &'a T> + Clone,
+{
+    #[inline]
+    fn peep(&mut self) -> Option<&'a T> {
+        self.next_result.clone()
+    }
+}
+
+impl<'a, T, I> PeepAdvanceIter<'a, T> for Peekable<I>
+where
+    T: 'a + Ord,
+    I: Iterator<Item = &'a T>,
+{
+    fn peep(&mut self) -> Option<&'a T> {
+        self.peek().copied()
     }
 }
 
@@ -486,46 +536,6 @@ where
     }
 }
 
-pub struct PeepAdvanceAdapter<I: Iterator> {
-    iter: I,
-    next_result: Option<I::Item>,
-}
-
-impl<I: Iterator> From<I> for PeepAdvanceAdapter<I> {
-    fn from(mut iter: I) -> Self {
-        let next_result = iter.next();
-        Self { iter, next_result }
-    }
-}
-
-impl<I: Iterator> Iterator for PeepAdvanceAdapter<I>
-where
-    I::Item: Clone,
-{
-    type Item = <I as Iterator>::Item;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(result) = self.next_result.clone() {
-            self.next_result = self.iter.next();
-            Some(result)
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a, T, I> PeepAdvanceIter<'a, T> for PeepAdvanceAdapter<I>
-where
-    T: Ord + 'a + Clone,
-    I: Iterator<Item = &'a T> + Clone,
-{
-    #[inline]
-    fn peep(&mut self) -> Option<&'a T> {
-        self.next_result.clone()
-    }
-}
-
 pub trait SetOsoIterAdaption<'a, T: 'a + Ord, I>
 where
     T: 'a + Ord + Clone,
@@ -658,7 +668,15 @@ mod tests {
         let mut oso_iter = set1.oso_iter();
         oso_iter.advance_until(&"c");
         assert_eq!(oso_iter.next(), Some(&"c"));
-        assert_eq!(oso_iter.next_or_after(&"e"), Some(&"e"));
+        assert_eq!(oso_iter.next_at_or_after(&"e"), Some(&"e"));
+    }
+
+    #[test]
+    fn next_or_after() {
+        let set1 = Set::<&str>::from(vec!["a", "b", "c", "d", "e", "f"]);
+        let mut oso_iter = set1.oso_iter();
+        assert_eq!(oso_iter.next_at_or_after(&"c"), Some(&"c"));
+        assert_eq!(oso_iter.next_at_or_after(&"e"), Some(&"e"));
     }
 
     #[test]
