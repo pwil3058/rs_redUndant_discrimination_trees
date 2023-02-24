@@ -28,6 +28,19 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
         }
     }
 
+    /// Advance this iterator to the next item at or after the given item.
+    /// Default implementation is O(n) but custom built implementations could be as good as O(log(n)).
+    // TODO: try to make advance_until() return &mut Self
+    fn advance_after(&mut self, t: &T) {
+        while let Some(item) = self.peep() {
+            if t >= item {
+                self.next();
+            } else {
+                break;
+            }
+        }
+    }
+
     /// Get the next element equal to or greater than the target
     fn next_at_or_after(&mut self, target: &T) -> Option<&'a T> {
         self.skip_while(|x| x < &target).next()
@@ -84,25 +97,56 @@ where
     }
 }
 
-pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
+pub trait SetOperations<'a, T: 'a + Ord>: Sized {
     /// Iterate over the set difference of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn difference(self, iter: Self) -> Self;
+    fn difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set intersection of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn intersection(self, iter: Self) -> Self;
+    fn intersection(self, iter: Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set difference of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn symmetric_difference(self, iter: Self) -> Self;
+    fn symmetric_difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set union of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn union(self, iter: Self) -> Self;
+    fn union(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+}
 
+pub trait SetRelationShips<'a, T: 'a + Ord>: Sized {
     /// Is the output of the given Iterator disjoint from the output of
     /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    fn is_disjoint(&self, other: &'a Self) -> bool;
+
+    /// Is the output of the given Iterator a proper subset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    fn is_proper_subset(&self, other: &'a Self) -> bool;
+
+    /// Is the output of the given Iterator a proper superset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    fn is_proper_superset(&self, other: &'a Self) -> bool;
+
+    /// Is the output of the given Iterator a subset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    fn is_subset(&self, other: &'a Self) -> bool;
+
+    /// Is the output of the given Iterator a superset of the output of
+    /// this iterator?
+    fn is_superset(&self, other: &'a Self) -> bool;
+}
+
+pub trait IterSetOperations<'a, T: 'a + Ord>:
+    SetOperations<'a, T> + PeepAdvanceIter<'a, T> + Sized
+{
+}
+
+pub trait IterSetRelationships<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
     #[allow(clippy::wrong_self_convention)]
     fn is_disjoint(mut self, mut other: Self) -> bool {
         loop {
@@ -128,8 +172,6 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
         }
     }
 
-    /// Is the output of the given Iterator a proper subset of the output of
-    /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     fn is_proper_subset(mut self, mut other: Self) -> bool {
         let mut result = false;
@@ -155,8 +197,6 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
         result
     }
 
-    /// Is the output of the given Iterator a proper superset of the output of
-    /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     fn is_proper_superset(mut self, mut other: Self) -> bool {
         let mut result = false;
@@ -182,8 +222,6 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
         result
     }
 
-    /// Is the output of the given Iterator a subset of the output of
-    /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     fn is_subset(mut self, mut other: Self) -> bool {
         while let Some(my_item) = self.peep() {
@@ -207,8 +245,6 @@ pub trait SetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
         true
     }
 
-    /// Is the output of the given Iterator a superset of the output of
-    /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     fn is_superset(mut self, mut other: Self) -> bool {
         while let Some(my_item) = self.peep() {
@@ -376,19 +412,19 @@ impl<'a, T> SetOperations<'a, T> for OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
 {
-    fn difference(self, other: Self) -> Self {
+    fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.sub(other)
     }
 
-    fn intersection(self, other: Self) -> Self {
+    fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitand(other)
     }
 
-    fn symmetric_difference(self, other: Self) -> Self {
+    fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitxor(other)
     }
 
-    fn union(self, other: Self) -> Self {
+    fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitor(other)
     }
 }
