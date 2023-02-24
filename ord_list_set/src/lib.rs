@@ -11,21 +11,26 @@ use ord_set_iter_set_ops::{
 };
 
 /// A set of items of type T ordered according to Ord (with no duplicates)
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdListSet<T: Ord> {
     members: Vec<T>,
 }
 
-impl<T: Ord + Clone> OrdListSet<T> {
-    pub fn new(list: &[T]) -> Self {
-        let mut members: Vec<T> = list.to_vec();
-        members.sort_unstable();
-        members.dedup();
-        Self { members }
+impl<T: Ord> Default for OrdListSet<T> {
+    fn default() -> Self {
+        Self {
+            members: Vec::new(),
+        }
     }
 }
 
-impl<T: Ord + Clone> OrdListSet<T> {
+impl<T: Ord> OrdListSet<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<T: Ord> OrdListSet<T> {
     /// Return number of members in this set.
     pub fn len(&self) -> usize {
         self.members.len()
@@ -45,7 +50,7 @@ impl<T: Ord + Clone> OrdListSet<T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
+impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     /// Visits the values representing the difference, i.e., all the values in `self` but not in
     /// `other`,without duplicates, in ascending order.
     ///
@@ -247,25 +252,21 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 /// assert_eq!(fast_way, chain_way);
 /// ```
 #[derive(Clone)]
-pub struct OrdListSetIter<'a, T: Ord + Clone> {
+pub struct OrdListSetIter<'a, T: Ord> {
     elements: &'a [T],
     index: usize,
 }
 
-impl<'a, T: Ord + Clone> Iterator for OrdListSetIter<'a, T> {
+impl<'a, T: Ord> Iterator for OrdListSetIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(element) = self.elements.get(self.index) {
-            self.index += 1;
-            Some(element)
-        } else {
-            None
-        }
+        self.index += 1;
+        self.elements.get(self.index - 1)
     }
 }
 
-impl<'a, T: 'a + Ord + Clone> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
+impl<'a, T: 'a + Ord> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
     /// Peep at the next item in the iterator without advancing the iterator.
     fn peep(&mut self) -> Option<&'a T> {
         self.elements.get(self.index)
@@ -281,7 +282,7 @@ impl<'a, T: 'a + Ord + Clone> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Clone> IterSetOperations<'a, T> for OrdListSetIter<'a, T> {
+impl<'a, T: 'a + Ord> IterSetOperations<'a, T> for OrdListSetIter<'a, T> {
     fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.sub(other)
     }
@@ -301,7 +302,7 @@ impl<'a, T: 'a + Ord + Clone> IterSetOperations<'a, T> for OrdListSetIter<'a, T>
 
 impl<'a, T, O> Sub<O> for OrdListSetIter<'a, T>
 where
-    T: Ord + 'a + Clone,
+    T: Ord + 'a,
     O: PeepAdvanceIter<'a, T> + 'a,
 {
     type Output = OrdSetOpsIter<'a, T>;
@@ -331,7 +332,7 @@ where
 
 impl<'a, T, O> BitAnd<O> for OrdListSetIter<'a, T>
 where
-    T: Ord + 'a + Clone,
+    T: Ord + 'a,
     O: PeepAdvanceIter<'a, T> + 'a,
 {
     type Output = OrdSetOpsIter<'a, T>;
@@ -361,7 +362,7 @@ where
 
 impl<'a, T, O> BitXor<O> for OrdListSetIter<'a, T>
 where
-    T: Ord + 'a + Clone,
+    T: Ord + 'a,
     O: PeepAdvanceIter<'a, T> + 'a,
 {
     type Output = OrdSetOpsIter<'a, T>;
@@ -391,7 +392,7 @@ where
 
 impl<'a, T, O> BitOr<O> for OrdListSetIter<'a, T>
 where
-    T: Ord + 'a + Clone,
+    T: Ord + 'a,
     O: PeepAdvanceIter<'a, T> + 'a,
 {
     type Output = OrdSetOpsIter<'a, T>;
