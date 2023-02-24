@@ -542,12 +542,6 @@ trait Engine<E: ItemTraits>: Sized {
     fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
     // Algorithm 6.14
     fn partial_matches(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>>;
-    // Algorithm 6.15
-    fn partial_matches_after_key(
-        &self,
-        query: &BTreeSet<Rc<E>>,
-        key: &Rc<E>,
-    ) -> BTreeSet<Rc<TreeNode<E>>>;
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
@@ -584,107 +578,48 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
 
     // Algorithm 6.14
     fn partial_matches(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>> {
-        let mut partial_matches = BTreeSet::new();
         println!("PM({self:?}, {query:?})");
-        if self.is_disjoint_child_indices(query) {
-            return partial_matches;
-            if !query.is_disjoint(&self.elements) {
-                println!("I {self:?} am the longest match to {query:?} down this path.");
-                partial_matches.insert(Rc::clone(self));
-            } else {
-                println!("I {self:?} am not a partial match to {query:?}");
-            }
-            println!("Partial matches {partial_matches:?}");
-            partial_matches
-        } else {
-            return partial_matches;
-            let mut query_elements = query - &self.elements;
-            while let Some(query_element) = query_elements.pop_first() {
-                if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&query_element) {
-                    let child_element = r_child
-                        .elements()
-                        .difference(self.elements())
-                        .intersection(query.oso_iter())
-                        .next()
-                        .unwrap();
-                    if &query_element == child_element {
-                        partial_matches = &partial_matches
-                            | &r_child.partial_matches_after_key(query, &query_element);
-                    }
-                    println!("Real partial matches: {partial_matches:?}");
-                    query_elements = &query_elements - &r_child_keys;
-                } else if let Some((v_child, v_child_keys)) =
-                    self.get_v_child_and_keys(&query_element)
-                {
-                    let child_element = v_child
-                        .elements()
-                        .difference(self.elements())
-                        .intersection(query.oso_iter())
-                        .next()
-                        .unwrap();
-                    if &query_element == child_element {
-                        partial_matches = &partial_matches
-                            | &v_child.partial_matches_after_key(query, &query_element);
-                    }
-                    println!("Virtual partial matches: {partial_matches:?}");
-                    query_elements = &query_elements - &v_child_keys;
-                }
-            }
-            partial_matches
-        }
-    }
-
-    // Algorithm 6.15
-    fn partial_matches_after_key(
-        &self,
-        query: &BTreeSet<Rc<E>>,
-        key: &Rc<E>,
-    ) -> BTreeSet<Rc<TreeNode<E>>> {
-        //debug_assert!(self.verify_tree());
-        println!("AFTER key({self:?}, {key:?})");
-        let mut partial_matches = BTreeSet::new();
-        if self.is_disjoint_child_indices(query) {
-            if !query.is_disjoint(&self.elements) {
-                partial_matches.insert(Rc::clone(self));
-            }
-            return partial_matches;
-        } else {
-            let mut query_elements = query.oso_iter().difference(self.elements.oso_iter());
-            query_elements.advance_after(key);
-            let mut query_elements = BTreeSet::from_iter(query_elements.cloned());
-            println!("Query elements: {query_elements:?}");
-            return BTreeSet::new();
-            while let Some(query_element) = query_elements.pop_first() {
-                if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&query_element) {
-                    let child_element = r_child
-                        .elements()
-                        .difference(self.elements())
-                        .intersection(query.oso_iter())
-                        .next()
-                        .unwrap();
-                    if &query_element == child_element {
-                        partial_matches = &partial_matches
-                            | &r_child.partial_matches_after_key(query, &query_element);
-                    }
-                    query_elements = &query_elements - &r_child_keys;
-                } else if let Some((v_child, v_child_keys)) =
-                    self.get_v_child_and_keys(&query_element)
-                {
-                    let child_element = v_child
-                        .elements()
-                        .difference(self.elements())
-                        .intersection(query.oso_iter())
-                        .next()
-                        .unwrap();
-                    if &query_element == child_element {
-                        partial_matches = &partial_matches
-                            | &v_child.partial_matches_after_key(query, &query_element);
-                    }
-                    query_elements = &query_elements - &v_child_keys;
-                }
-            }
-        }
-        partial_matches
+        return BTreeSet::new();
+        // if self.is_disjoint_child_indices(query) {
+        //     if !query.is_disjoint(&self.elements) {
+        //         println!("I {self:?} am the longest match to {query:?} down this path.");
+        //         BTreeSet::from([Rc::clone(self)])
+        //     } else {
+        //         println!("I {self:?} am not a partial match to {query:?}");
+        //         BTreeSet::new()
+        //     }
+        // } else {
+        //     let mut partial_matches = BTreeSet::new();
+        //     let mut r_query_elements = BTreeSet::from_iter(
+        //         query
+        //             .oso_iter()
+        //             .intersection(self.r_children.borrow().oso_keys())
+        //             .cloned(),
+        //     );
+        //     while let Some(r_query_element) = r_query_elements.pop_first() {
+        //         if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&r_query_element) {
+        //             if &r_query_element == r_child.elements.intersection(query).next().unwrap() {
+        //                 partial_matches = &partial_matches | &r_child.partial_matches(query);
+        //             }
+        //             r_query_elements = &r_query_elements - &r_child_keys;
+        //         }
+        //     }
+        //     let mut v_query_elements = BTreeSet::from_iter(
+        //         query
+        //             .oso_iter()
+        //             .intersection(self.v_children.borrow().oso_keys())
+        //             .cloned(),
+        //     );
+        //     while let Some(v_query_element) = v_query_elements.pop_first() {
+        //         if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&v_query_element) {
+        //             if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
+        //                 partial_matches = &partial_matches | &v_child.partial_matches(query);
+        //             }
+        //             v_query_elements = &v_query_elements - &v_child_keys;
+        //         }
+        //     }
+        //     partial_matches
+        // }
     }
 }
 

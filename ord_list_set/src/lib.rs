@@ -6,7 +6,9 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
 
-use ord_set_iter_set_ops::*;
+use ord_set_iter_set_ops::{
+    self, IterSetOperations, OrdSetOpsIter, PeepAdvanceIter, SetOperations,
+};
 
 /// A set of items of type T ordered according to Ord (with no duplicates)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -51,9 +53,10 @@ impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::SetOperations;
     ///
-    /// let a = OrdListSet::<&str>::new(&["a", "d", "f", "h"]);
-    /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].iter().cloned().collect();
+    /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
+    /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
     ///
     /// let difference: Vec<&str> = a.difference(&b).cloned().collect();
     /// assert_eq!(difference, ["a", "f",]);
@@ -69,9 +72,10 @@ impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::SetOperations;
     ///
-    /// let a = OrdListSet::<&str>::new(&["a", "d", "f", "h"]);
-    /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].iter().cloned().collect();
+    /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
+    /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
     ///
     /// let intersection: Vec<&str> = a.intersection(&b).cloned().collect();
     /// assert_eq!(intersection, ["d", "h",]);
@@ -87,9 +91,10 @@ impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::SetOperations;
     ///
-    /// let a = OrdListSet::<&str>::new(&["a", "d", "f", "h"]);
-    /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].iter().cloned().collect();
+    /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
+    /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
     ///
     /// let symmetric_difference: Vec<&str> = a.symmetric_difference(&b).cloned().collect();
     /// assert_eq!(symmetric_difference, ["a", "b", "c", "f", "i"]);
@@ -105,9 +110,10 @@ impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::SetOperations;
     ///
-    /// let a: OrdListSet<&str> = ["a", "d", "f", "h"].iter().cloned().collect();
-    /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].iter().cloned().collect();
+    /// let a: OrdListSet<&str> = ["a", "d", "f", "h"].into();
+    /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].into();
     ///
     /// let union: Vec<&str> = a.union(&b).cloned().collect();
     /// assert_eq!(union, ["a", "b", "c", "d", "f", "h", "i",]);
@@ -117,8 +123,9 @@ impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSet<T> {
     }
 }
 
-impl<T: Ord> From<Vec<T>> for OrdListSet<T> {
-    fn from(mut members: Vec<T>) -> Self {
+impl<T: Ord, const N: usize> From<[T; N]> for OrdListSet<T> {
+    fn from(members: [T; N]) -> Self {
+        let mut members = Vec::from(members);
         members.sort_unstable();
         members.dedup();
         Self { members }
@@ -144,10 +151,10 @@ impl<T: Ord + Clone> Sub<&OrdListSet<T>> for &OrdListSet<T> {
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
-    /// assert_eq!(&a - &b, OrdListSet::<u32>::from(vec![1, 5]));
+    /// assert_eq!(&a - &b, OrdListSet::<u32>::from([1, 5]));
     /// ```
     fn sub(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
         self.difference(rhs).cloned().collect()
@@ -164,10 +171,10 @@ impl<T: Ord + Clone> BitAnd<&OrdListSet<T>> for &OrdListSet<T> {
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
-    /// assert_eq!(&a & &b, OrdListSet::<u32>::from(vec![2, 3,]));
+    /// assert_eq!(&a & &b, OrdListSet::<u32>::from([2, 3,]));
     /// ```
     fn bitand(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
         self.intersection(rhs).cloned().collect()
@@ -184,10 +191,10 @@ impl<T: Ord + Clone> BitXor<&OrdListSet<T>> for &OrdListSet<T> {
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
-    /// assert_eq!(&a ^ &b, OrdListSet::<u32>::from(vec![1, 4, 5]));
+    /// assert_eq!(&a ^ &b, OrdListSet::<u32>::from([1, 4, 5]));
     /// ```
     fn bitxor(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
         self.symmetric_difference(rhs).cloned().collect()
@@ -204,10 +211,10 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
-    /// assert_eq!(&a | &b, OrdListSet::<u32>::from(vec![1, 2, 3, 4]));
+    /// assert_eq!(&a | &b, OrdListSet::<u32>::from([1, 2, 3, 4]));
     /// ```
     fn bitor(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
         self.union(rhs).cloned().collect()
@@ -221,12 +228,14 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 /// # Examples
 /// ```
 /// use ord_list_set::OrdListSet;
-/// use ord_set_ops_iter::PeepAdvanceIter;
+/// use ord_set_iter_set_ops::PeepAdvanceIter;
+/// use ord_set_iter_set_ops::SetOperations;
+/// use ord_set_iter_set_ops::IterSetOperations;
 ///
-/// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 7, 8, 9]);
-/// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
-/// let c = OrdListSet::<u32>::from(vec![3, 5, 6]);
-/// let d = OrdListSet::<u32>::from(vec![2, 7, 9]);
+/// let a = OrdListSet::<u32>::from([1, 2, 3, 7, 8, 9]);
+/// let b = OrdListSet::<u32>::from([2, 3, 4]);
+/// let c = OrdListSet::<u32>::from([3, 5, 6]);
+/// let d = OrdListSet::<u32>::from([2, 7, 9]);
 ///
 /// let slow_way = &(&(&a - &b) | &c) ^ &d;
 /// let fast_way: OrdListSet<u32> = (((a.iter() - b.iter()) | c.iter()) ^ d.iter()).cloned().collect();
@@ -305,11 +314,11 @@ where
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
     /// let result: OrdListSet<u32>  = (a.iter() - b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from(vec![1, 5]));
+    /// assert_eq!(result, OrdListSet::<u32>::from([1, 5]));
     /// ```
     #[inline]
     fn sub(self, other: O) -> Self::Output {
@@ -335,11 +344,11 @@ where
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
     /// let result: OrdListSet<u32>  = (a.iter() & b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from(vec![2, 3]));
+    /// assert_eq!(result, OrdListSet::<u32>::from([2, 3]));
     /// ```
     #[inline]
     fn bitand(self, other: O) -> Self::Output {
@@ -365,11 +374,11 @@ where
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
     /// let result: OrdListSet<u32>  = (a.iter() ^ b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from(vec![1, 4, 5]));
+    /// assert_eq!(result, OrdListSet::<u32>::from([1, 4, 5]));
     /// ```
     #[inline]
     fn bitxor(self, other: O) -> Self::Output {
@@ -395,11 +404,11 @@ where
     /// ```
     /// use ord_list_set::OrdListSet;
     ///
-    /// let a = OrdListSet::<u32>::from(vec![1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from(vec![2, 3, 4]);
+    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
+    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
     ///
     /// let result: OrdListSet<u32>  = (a.iter() | b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from(vec![1, 2, 3, 4, 5]));
+    /// assert_eq!(result, OrdListSet::<u32>::from([1, 2, 3, 4, 5]));
     /// ```
     #[inline]
     fn bitor(self, other: O) -> Self::Output {
@@ -419,8 +428,8 @@ mod tests {
         let set1: OrdListSet<&str> = ["a", "b", "c"].iter().cloned().collect();
         let set2: OrdListSet<&str> = ["d", "e", "b", "c"].iter().cloned().collect();
         assert_eq!(
-            vec!["a", "b", "c", "d", "e"],
-            set1.union(&set2).cloned().collect::<Vec<&str>>()
+            OrdListSet::<&str>::from(["a", "b", "c", "d", "e"]),
+            OrdListSet::<&str>::from_iter(set1.union(&set2).cloned())
         );
     }
 }
