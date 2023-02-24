@@ -100,19 +100,19 @@ where
 pub trait SetOperations<'a, T: 'a + Ord>: Sized {
     /// Iterate over the set difference of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+    fn difference(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set intersection of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn intersection(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+    fn intersection(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set difference of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn symmetric_difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+    fn symmetric_difference(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
 
     /// Iterate over the set union of this Iterator and the given Iterator
     /// in the order defined by their elements `Ord` trait implementation.
-    fn union(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+    fn union(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
 }
 
 pub trait SetRelationShips<'a, T: 'a + Ord>: Sized {
@@ -141,9 +141,22 @@ pub trait SetRelationShips<'a, T: 'a + Ord>: Sized {
     fn is_superset(&self, other: &'a Self) -> bool;
 }
 
-pub trait IterSetOperations<'a, T: 'a + Ord>:
-    SetOperations<'a, T> + PeepAdvanceIter<'a, T> + Sized
-{
+pub trait IterSetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
+    /// Iterate over the set difference of this Iterator and the given Iterator
+    /// in the order defined by their elements `Ord` trait implementation.
+    fn difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+
+    /// Iterate over the set intersection of this Iterator and the given Iterator
+    /// in the order defined by their elements `Ord` trait implementation.
+    fn intersection(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+
+    /// Iterate over the set difference of this Iterator and the given Iterator
+    /// in the order defined by their elements `Ord` trait implementation.
+    fn symmetric_difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
+
+    /// Iterate over the set union of this Iterator and the given Iterator
+    /// in the order defined by their elements `Ord` trait implementation.
+    fn union(self, iter: Self) -> OrdSetOpsIter<'a, T>;
 }
 
 pub trait IterSetRelationships<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
@@ -408,7 +421,7 @@ where
     }
 }
 
-impl<'a, T> SetOperations<'a, T> for OrdSetOpsIter<'a, T>
+impl<'a, T> IterSetOperations<'a, T> for OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
 {
@@ -428,6 +441,8 @@ where
         self.bitor(other)
     }
 }
+
+impl<'a, T: 'a + Ord> IterSetRelationships<'a, T> for OrdSetOpsIter<'a, T> {}
 
 impl<'a, T> Iterator for OrdSetOpsIter<'a, T>
 where

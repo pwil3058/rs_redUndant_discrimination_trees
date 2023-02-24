@@ -35,11 +35,11 @@ impl<T: Ord + Clone> OrdListSet<T> {
     }
 
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
-    pub fn iter(&self) -> OrdListSetIter<'_, T> {
-        OrdListSetIter {
+    pub fn iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
+        OrdSetOpsIter::Plain(Box::new(OrdListSetIter {
             elements: &self.members,
             index: 0,
-        }
+        }))
     }
 }
 
@@ -272,7 +272,7 @@ impl<'a, T: 'a + Ord + Clone> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Ord + Clone> SetOperations<'a, T> for OrdListSetIter<'a, T> {
+impl<'a, T: 'a + Ord + Clone> IterSetOperations<'a, T> for OrdListSetIter<'a, T> {
     fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.sub(other)
     }
