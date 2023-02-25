@@ -170,7 +170,7 @@ pub trait IterSetRelationships<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized 
                             self.advance_until(other_item);
                         }
                         Ordering::Greater => {
-                            self.advance_until(my_item);
+                            other.advance_until(my_item);
                         }
                         Ordering::Equal => {
                             return false;
@@ -739,6 +739,18 @@ mod tests {
         assert_eq!(oso_iter.next(), Some(&"c"));
         assert_eq!(oso_iter.next(), Some(&"d"));
         assert_eq!(oso_iter.next(), None);
+    }
+
+    #[test]
+    fn is_disjoint() {
+        debug_assert!(!BTreeSet::<&str>::from(["a", "b", "c", "d"])
+            .is_disjoint(&BTreeSet::<&str>::from(["a", "b", "c", "d"])));
+        debug_assert!(!BTreeSet::<&str>::from(["a", "c", "e", "g"])
+            .is_disjoint(&BTreeSet::<&str>::from(["b", "d", "e", "f"])));
+        debug_assert!(BTreeSet::<&str>::from(["a", "c", "e", "g"])
+            .is_disjoint(&BTreeSet::<&str>::from(["b", "d", "f", "h"])));
+        debug_assert!(BTreeSet::<&str>::from(["b", "d", "f", "h"])
+            .is_disjoint(&BTreeSet::<&str>::from(["a", "c", "e", "g"])));
     }
 
     #[test]
