@@ -11,6 +11,7 @@ use std::{
 };
 
 /// Ordered Iterator over set operations on the contents of an ordered set.
+// TODO: add reset() function to PeepAdvanceIter
 pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
     /// Peep at the next item in the iterator without advancing the iterator.
     fn peep(&mut self) -> Option<&'a T>;
@@ -39,11 +40,6 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
                 break;
             }
         }
-    }
-
-    /// Get the next element equal to or greater than the target
-    fn next_at_or_after(&mut self, target: &T) -> Option<&'a T> {
-        self.skip_while(|x| x < &target).next()
     }
 }
 
@@ -94,191 +90,6 @@ where
 {
     fn peep(&mut self) -> Option<&'a T> {
         self.peek().copied()
-    }
-}
-
-pub trait SetOperations<'a, T: 'a + Ord>: Sized {
-    /// Iterate over the set difference of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn difference(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set intersection of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn intersection(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set difference of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn symmetric_difference(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set union of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn union(&'a self, iter: &'a Self) -> OrdSetOpsIter<'a, T>;
-}
-
-pub trait SetRelationShips<'a, T: 'a + Ord>: Sized {
-    /// Is the output of the given Iterator disjoint from the output of
-    /// this iterator?
-    #[allow(clippy::wrong_self_convention)]
-    fn is_disjoint(&self, other: &'a Self) -> bool;
-
-    /// Is the output of the given Iterator a proper subset of the output of
-    /// this iterator?
-    #[allow(clippy::wrong_self_convention)]
-    fn is_proper_subset(&self, other: &'a Self) -> bool;
-
-    /// Is the output of the given Iterator a proper superset of the output of
-    /// this iterator?
-    #[allow(clippy::wrong_self_convention)]
-    fn is_proper_superset(&self, other: &'a Self) -> bool;
-
-    /// Is the output of the given Iterator a subset of the output of
-    /// this iterator?
-    #[allow(clippy::wrong_self_convention)]
-    fn is_subset(&self, other: &'a Self) -> bool;
-
-    /// Is the output of the given Iterator a superset of the output of
-    /// this iterator?
-    fn is_superset(&self, other: &'a Self) -> bool;
-}
-
-pub trait IterSetOperations<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
-    /// Iterate over the set difference of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set intersection of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn intersection(self, iter: Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set difference of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn symmetric_difference(self, iter: Self) -> OrdSetOpsIter<'a, T>;
-
-    /// Iterate over the set union of this Iterator and the given Iterator
-    /// in the order defined by their elements `Ord` trait implementation.
-    fn union(self, iter: Self) -> OrdSetOpsIter<'a, T>;
-}
-
-pub trait IterSetRelationships<'a, T: 'a + Ord>: PeepAdvanceIter<'a, T> + Sized {
-    #[allow(clippy::wrong_self_convention)]
-    fn is_disjoint(mut self, mut other: Self) -> bool {
-        loop {
-            if let Some(my_item) = self.peep() {
-                if let Some(other_item) = other.peep() {
-                    match my_item.cmp(other_item) {
-                        Ordering::Less => {
-                            self.advance_until(other_item);
-                        }
-                        Ordering::Greater => {
-                            other.advance_until(my_item);
-                        }
-                        Ordering::Equal => {
-                            return false;
-                        }
-                    }
-                } else {
-                    return true;
-                }
-            } else {
-                return true;
-            }
-        }
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    fn is_proper_subset(mut self, mut other: Self) -> bool {
-        let mut result = false;
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
-                match my_item.cmp(other_item) {
-                    Ordering::Less => {
-                        return false;
-                    }
-                    Ordering::Greater => {
-                        result = true;
-                        other.advance_until(my_item);
-                    }
-                    Ordering::Equal => {
-                        other.next();
-                        self.next();
-                    }
-                }
-            } else {
-                return false;
-            }
-        }
-        result
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    fn is_proper_superset(mut self, mut other: Self) -> bool {
-        let mut result = false;
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
-                match my_item.cmp(other_item) {
-                    Ordering::Less => {
-                        result = true;
-                        self.advance_until(other_item);
-                    }
-                    Ordering::Greater => {
-                        return false;
-                    }
-                    Ordering::Equal => {
-                        other.next();
-                        self.next();
-                    }
-                }
-            } else {
-                return false;
-            }
-        }
-        result
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    fn is_subset(mut self, mut other: Self) -> bool {
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
-                match my_item.cmp(other_item) {
-                    Ordering::Less => {
-                        return false;
-                    }
-                    Ordering::Greater => {
-                        other.advance_until(my_item);
-                    }
-                    Ordering::Equal => {
-                        other.next();
-                        self.next();
-                    }
-                }
-            } else {
-                return false;
-            }
-        }
-        true
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    fn is_superset(mut self, mut other: Self) -> bool {
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
-                match my_item.cmp(other_item) {
-                    Ordering::Less => {
-                        self.advance_until(other_item);
-                    }
-                    Ordering::Greater => {
-                        return false;
-                    }
-                    Ordering::Equal => {
-                        other.next();
-                        self.next();
-                    }
-                }
-            } else {
-                return false;
-            }
-        }
-        true
     }
 }
 
@@ -421,28 +232,149 @@ where
     }
 }
 
-impl<'a, T> IterSetOperations<'a, T> for OrdSetOpsIter<'a, T>
+impl<'a, T> OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
 {
-    fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
+    pub fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.sub(other)
     }
 
-    fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
+    pub fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitand(other)
     }
 
-    fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
+    pub fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitxor(other)
     }
 
-    fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
+    pub fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
         self.bitor(other)
     }
 }
 
-impl<'a, T: 'a + Ord> IterSetRelationships<'a, T> for OrdSetOpsIter<'a, T> {}
+impl<'a, T: 'a + Ord> OrdSetOpsIter<'a, T> {
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_disjoint(mut self, mut other: Self) -> bool {
+        loop {
+            if let Some(my_item) = self.peep() {
+                if let Some(other_item) = other.peep() {
+                    match my_item.cmp(other_item) {
+                        Ordering::Less => {
+                            self.advance_until(other_item);
+                        }
+                        Ordering::Greater => {
+                            other.advance_until(my_item);
+                        }
+                        Ordering::Equal => {
+                            return false;
+                        }
+                    }
+                } else {
+                    return true;
+                }
+            } else {
+                return true;
+            }
+        }
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_proper_subset(mut self, mut other: Self) -> bool {
+        let mut result = false;
+        while let Some(my_item) = self.peep() {
+            if let Some(other_item) = other.peep() {
+                match my_item.cmp(other_item) {
+                    Ordering::Less => {
+                        return false;
+                    }
+                    Ordering::Greater => {
+                        result = true;
+                        other.advance_until(my_item);
+                    }
+                    Ordering::Equal => {
+                        other.next();
+                        self.next();
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        result
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_proper_superset(mut self, mut other: Self) -> bool {
+        let mut result = false;
+        while let Some(my_item) = self.peep() {
+            if let Some(other_item) = other.peep() {
+                match my_item.cmp(other_item) {
+                    Ordering::Less => {
+                        result = true;
+                        self.advance_until(other_item);
+                    }
+                    Ordering::Greater => {
+                        return false;
+                    }
+                    Ordering::Equal => {
+                        other.next();
+                        self.next();
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        result
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_subset(mut self, mut other: Self) -> bool {
+        while let Some(my_item) = self.peep() {
+            if let Some(other_item) = other.peep() {
+                match my_item.cmp(other_item) {
+                    Ordering::Less => {
+                        return false;
+                    }
+                    Ordering::Greater => {
+                        other.advance_until(my_item);
+                    }
+                    Ordering::Equal => {
+                        other.next();
+                        self.next();
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_superset(mut self, mut other: Self) -> bool {
+        while let Some(my_item) = self.peep() {
+            if let Some(other_item) = other.peep() {
+                match my_item.cmp(other_item) {
+                    Ordering::Less => {
+                        self.advance_until(other_item);
+                    }
+                    Ordering::Greater => {
+                        return false;
+                    }
+                    Ordering::Equal => {
+                        other.next();
+                        self.next();
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        true
+    }
+}
 
 impl<'a, T> Iterator for OrdSetOpsIter<'a, T>
 where
@@ -718,16 +650,6 @@ mod tests {
         let set1 = Set::<&str>::from(vec!["a", "b", "c", "d", "e", "f"]);
         let mut oso_iter = set1.oso_iter();
         oso_iter.advance_until(&"c");
-        assert_eq!(oso_iter.next(), Some(&"c"));
-        assert_eq!(oso_iter.next_at_or_after(&"e"), Some(&"e"));
-    }
-
-    #[test]
-    fn next_or_after() {
-        let set1 = Set::<&str>::from(vec!["a", "b", "c", "d", "e", "f"]);
-        let mut oso_iter = set1.oso_iter();
-        assert_eq!(oso_iter.next_at_or_after(&"c"), Some(&"c"));
-        assert_eq!(oso_iter.next_at_or_after(&"e"), Some(&"e"));
     }
 
     #[test]

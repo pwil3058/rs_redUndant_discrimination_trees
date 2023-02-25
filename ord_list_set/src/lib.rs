@@ -6,9 +6,7 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
 
-use ord_set_iter_set_ops::{
-    self, IterSetOperations, OrdSetOpsIter, PeepAdvanceIter, SetOperations,
-};
+use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter};
 
 /// A set of items of type T ordered according to Ord (with no duplicates)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -25,7 +23,7 @@ impl<T: Ord> Default for OrdListSet<T> {
 }
 
 impl<T: Ord> OrdListSet<T> {
-    pub fn new() -> Self {
+    pub fn empty_set() -> Self {
         Self::default()
     }
 }
@@ -50,7 +48,40 @@ impl<T: Ord> OrdListSet<T> {
     }
 }
 
-impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
+// set functions that don't modify the set
+impl<'a, T: 'a + Ord> OrdListSet<T> {
+    ///Returns true if the set contains an element equal to the value.
+    pub fn contains(&self, item: &T) -> bool {
+        self.members.binary_search(item).is_ok()
+    }
+
+    /// Returns a reference to an element or subslice depending on the type of index.
+    ///
+    ///If given a position, returns a reference to the element at that position or None if out of bounds.
+    ///If given a range, returns the subslice corresponding to that range, or None if out of bounds.
+    pub fn get<I>(&self, index: I) -> Option<&<I as std::slice::SliceIndex<[T]>>::Output>
+    where
+        I: std::slice::SliceIndex<[T]>,
+    {
+        self.members.get(index)
+    }
+
+    /// Returns a reference to the first element in the set, if any. This element is always the minimum of all elements in the set.
+    pub fn first(&self) -> Option<&T>
+    where
+        T: Ord,
+    {
+        self.members.first()
+    }
+
+    /// Returns a reference to the last element in the set, if any. This element is always the maximum of all elements in the set.
+    pub fn last(&self) -> Option<&T>
+    where
+        T: Ord,
+    {
+        self.members.last()
+    }
+
     /// Visits the values representing the difference, i.e., all the values in `self` but not in
     /// `other`,without duplicates, in ascending order.
     ///
@@ -58,7 +89,6 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
-    /// use ord_set_iter_set_ops::SetOperations;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -66,7 +96,7 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     /// let difference: Vec<&str> = a.difference(&b).cloned().collect();
     /// assert_eq!(difference, ["a", "f",]);
     /// ```
-    fn difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    pub fn difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
         self.iter().difference(other.iter())
     }
 
@@ -77,7 +107,6 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
-    /// use ord_set_iter_set_ops::SetOperations;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -85,7 +114,7 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     /// let intersection: Vec<&str> = a.intersection(&b).cloned().collect();
     /// assert_eq!(intersection, ["d", "h",]);
     /// ```
-    fn intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    pub fn intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
         self.iter().intersection(other.iter())
     }
 
@@ -96,7 +125,6 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
-    /// use ord_set_iter_set_ops::SetOperations;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -104,7 +132,7 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     /// let symmetric_difference: Vec<&str> = a.symmetric_difference(&b).cloned().collect();
     /// assert_eq!(symmetric_difference, ["a", "b", "c", "f", "i"]);
     /// ```
-    fn symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    pub fn symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
         self.iter().symmetric_difference(other.iter())
     }
 
@@ -115,7 +143,6 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     ///
     /// ```
     /// use ord_list_set::OrdListSet;
-    /// use ord_set_iter_set_ops::SetOperations;
     ///
     /// let a: OrdListSet<&str> = ["a", "d", "f", "h"].into();
     /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].into();
@@ -123,8 +150,42 @@ impl<'a, T: 'a + Ord> SetOperations<'a, T> for OrdListSet<T> {
     /// let union: Vec<&str> = a.union(&b).cloned().collect();
     /// assert_eq!(union, ["a", "b", "c", "d", "f", "h", "i",]);
     /// ```
-    fn union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    pub fn union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
         self.iter().union(other.iter())
+    }
+
+    /// Is the output of the given Iterator disjoint from the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_disjoint(&self, other: &'a Self) -> bool {
+        self.iter().is_disjoint(other.iter())
+    }
+
+    /// Is the output of the given Iterator a proper subset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_proper_subset(&self, other: &'a Self) -> bool {
+        self.iter().is_proper_subset(other.iter())
+    }
+
+    /// Is the output of the given Iterator a proper superset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_proper_superset(&self, other: &'a Self) -> bool {
+        self.iter().is_proper_superset(other.iter())
+    }
+
+    /// Is the output of the given Iterator a subset of the output of
+    /// this iterator?
+    #[allow(clippy::wrong_self_convention)]
+    pub fn is_subset(&self, other: &'a Self) -> bool {
+        self.iter().is_subset(other.iter())
+    }
+
+    /// Is the output of the given Iterator a superset of the output of
+    /// this iterator?
+    pub fn is_superset(&self, other: &'a Self) -> bool {
+        self.iter().is_superset(other.iter())
     }
 }
 
@@ -133,6 +194,13 @@ impl<T: Ord, const N: usize> From<[T; N]> for OrdListSet<T> {
         let mut members = Vec::from(members);
         members.sort_unstable();
         members.dedup();
+        Self { members }
+    }
+}
+
+impl<'a, T: Ord + Clone> From<OrdSetOpsIter<'a, T>> for OrdListSet<T> {
+    fn from(oso_iter: OrdSetOpsIter<T>) -> Self {
+        let members: Vec<T> = oso_iter.cloned().collect();
         Self { members }
     }
 }
@@ -162,7 +230,7 @@ impl<T: Ord + Clone> Sub<&OrdListSet<T>> for &OrdListSet<T> {
     /// assert_eq!(&a - &b, OrdListSet::<u32>::from([1, 5]));
     /// ```
     fn sub(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
-        self.difference(rhs).cloned().collect()
+        self.difference(rhs).into()
     }
 }
 
@@ -182,7 +250,7 @@ impl<T: Ord + Clone> BitAnd<&OrdListSet<T>> for &OrdListSet<T> {
     /// assert_eq!(&a & &b, OrdListSet::<u32>::from([2, 3,]));
     /// ```
     fn bitand(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
-        self.intersection(rhs).cloned().collect()
+        self.intersection(rhs).into()
     }
 }
 
@@ -202,7 +270,7 @@ impl<T: Ord + Clone> BitXor<&OrdListSet<T>> for &OrdListSet<T> {
     /// assert_eq!(&a ^ &b, OrdListSet::<u32>::from([1, 4, 5]));
     /// ```
     fn bitxor(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
-        self.symmetric_difference(rhs).cloned().collect()
+        self.symmetric_difference(rhs).into()
     }
 }
 
@@ -222,7 +290,7 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
     /// assert_eq!(&a | &b, OrdListSet::<u32>::from([1, 2, 3, 4]));
     /// ```
     fn bitor(self, rhs: &OrdListSet<T>) -> OrdListSet<T> {
-        self.union(rhs).cloned().collect()
+        self.union(rhs).into()
     }
 }
 
@@ -234,8 +302,6 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 /// ```
 /// use ord_list_set::OrdListSet;
 /// use ord_set_iter_set_ops::PeepAdvanceIter;
-/// use ord_set_iter_set_ops::SetOperations;
-/// use ord_set_iter_set_ops::IterSetOperations;
 ///
 /// let a = OrdListSet::<u32>::from([1, 2, 3, 7, 8, 9]);
 /// let b = OrdListSet::<u32>::from([2, 3, 4]);
@@ -251,7 +317,7 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 /// assert_eq!(fast_way, slow_way);
 /// assert_eq!(fast_way, chain_way);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct OrdListSetIter<'a, T: Ord> {
     elements: &'a [T],
     index: usize,
@@ -266,6 +332,18 @@ impl<'a, T: Ord> Iterator for OrdListSetIter<'a, T> {
     }
 }
 
+impl<'a, T: Ord> ExactSizeIterator for OrdListSetIter<'a, T> {
+    fn len(&self) -> usize {
+        self.elements.len() - self.index
+    }
+}
+
+impl<'a, T: Ord> OrdListSetIter<'a, T> {
+    pub fn is_empty(&self) -> bool {
+        self.index > self.elements.len()
+    }
+}
+
 impl<'a, T: 'a + Ord> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
     /// Peep at the next item in the iterator without advancing the iterator.
     fn peep(&mut self) -> Option<&'a T> {
@@ -275,148 +353,29 @@ impl<'a, T: 'a + Ord> PeepAdvanceIter<'a, T> for OrdListSetIter<'a, T> {
     /// Advance this iterator to the next item at or after the given item.
     /// Implementation is O(log(n)).
     fn advance_until(&mut self, t: &T) {
-        self.index += match self.elements[self.index..].binary_search(t) {
-            Ok(index) => index,
-            Err(index) => index,
-        };
-    }
-}
-
-impl<'a, T: 'a + Ord> IterSetOperations<'a, T> for OrdListSetIter<'a, T> {
-    fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.sub(other)
-    }
-
-    fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitand(other)
+        // Make sure we don't go backwards
+        if let Some(item) = self.peep() {
+            if item < t {
+                self.index += match self.elements[self.index..].binary_search(t) {
+                    Ok(index) => index,
+                    Err(index) => index,
+                };
+            }
+        }
     }
 
-    fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitxor(other)
-    }
-
-    fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitor(other)
-    }
-}
-
-impl<'a, T, O> Sub<O> for OrdListSetIter<'a, T>
-where
-    T: Ord + 'a,
-    O: PeepAdvanceIter<'a, T> + 'a,
-{
-    type Output = OrdSetOpsIter<'a, T>;
-
-    /// Returns the difference of `self` and `other` as a new ` OrdSetOpsIter<'a, T, Self, O>`
-    /// iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ord_list_set::OrdListSet;
-    ///
-    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
-    ///
-    /// let result: OrdListSet<u32>  = (a.iter() - b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from([1, 5]));
-    /// ```
-    #[inline]
-    fn sub(self, other: O) -> Self::Output {
-        OrdSetOpsIter::Difference(
-            Box::new(OrdSetOpsIter::Plain(Box::new(self))),
-            Box::new(other),
-        )
-    }
-}
-
-impl<'a, T, O> BitAnd<O> for OrdListSetIter<'a, T>
-where
-    T: Ord + 'a,
-    O: PeepAdvanceIter<'a, T> + 'a,
-{
-    type Output = OrdSetOpsIter<'a, T>;
-
-    /// Returns the intersection of `self` and `other` as a new ` OrdSetOpsIter<'a, T, Self, O>`
-    /// iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ord_list_set::OrdListSet;
-    ///
-    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
-    ///
-    /// let result: OrdListSet<u32>  = (a.iter() & b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from([2, 3]));
-    /// ```
-    #[inline]
-    fn bitand(self, other: O) -> Self::Output {
-        OrdSetOpsIter::Intersection(
-            Box::new(OrdSetOpsIter::Plain(Box::new(self))),
-            Box::new(other),
-        )
-    }
-}
-
-impl<'a, T, O> BitXor<O> for OrdListSetIter<'a, T>
-where
-    T: Ord + 'a,
-    O: PeepAdvanceIter<'a, T> + 'a,
-{
-    type Output = OrdSetOpsIter<'a, T>;
-
-    /// Returns the symmetric difference of `self` and `other` as a new ` OrdSetOpsIter<'a, T, Self, O>`
-    /// iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ord_list_set::OrdListSet;
-    ///
-    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
-    ///
-    /// let result: OrdListSet<u32>  = (a.iter() ^ b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from([1, 4, 5]));
-    /// ```
-    #[inline]
-    fn bitxor(self, other: O) -> Self::Output {
-        OrdSetOpsIter::SymmetricDifference(
-            Box::new(OrdSetOpsIter::Plain(Box::new(self))),
-            Box::new(other),
-        )
-    }
-}
-
-impl<'a, T, O> BitOr<O> for OrdListSetIter<'a, T>
-where
-    T: Ord + 'a,
-    O: PeepAdvanceIter<'a, T> + 'a,
-{
-    type Output = OrdSetOpsIter<'a, T>;
-
-    /// Returns the union of `self` and `other` as a new ` OrdSetOpsIter<'a, T, Self, O>`
-    /// iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ord_list_set::OrdListSet;
-    ///
-    /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
-    /// let b = OrdListSet::<u32>::from([2, 3, 4]);
-    ///
-    /// let result: OrdListSet<u32>  = (a.iter() | b.iter()).cloned().collect();
-    /// assert_eq!(result, OrdListSet::<u32>::from([1, 2, 3, 4, 5]));
-    /// ```
-    #[inline]
-    fn bitor(self, other: O) -> Self::Output {
-        OrdSetOpsIter::Union(
-            Box::new(OrdSetOpsIter::Plain(Box::new(self))),
-            Box::new(other),
-        )
+    /// Advance this iterator to the next item at or after the given item.
+    /// Default implementation is O(n) but custom built implementations could be as good as O(log(n)).
+    fn advance_after(&mut self, t: &T) {
+        // Make sure we don't go backwards
+        if let Some(item) = self.peep() {
+            if item <= t {
+                self.index += match self.elements[self.index..].binary_search(t) {
+                    Ok(index) => index + 1,
+                    Err(index) => index,
+                };
+            }
+        }
     }
 }
 
@@ -424,13 +383,37 @@ where
 mod tests {
     use super::*;
 
+    // TODO: create tests for set relationships
     #[test]
     fn union() {
-        let set1: OrdListSet<&str> = ["a", "b", "c"].iter().cloned().collect();
-        let set2: OrdListSet<&str> = ["d", "e", "b", "c"].iter().cloned().collect();
+        let set1 = OrdListSet::<&str>::from(["a", "b", "c"]);
+        let set2 = OrdListSet::<&str>::from(["d", "e", "b", "c"]);
         assert_eq!(
             OrdListSet::<&str>::from(["a", "b", "c", "d", "e"]),
-            OrdListSet::<&str>::from_iter(set1.union(&set2).cloned())
+            &set1 | &set2
         );
+    }
+
+    #[test]
+    fn intersection() {
+        let set1 = OrdListSet::<&str>::from(["a", "b", "c"]);
+        let set2 = OrdListSet::<&str>::from(["d", "e", "b", "c"]);
+        assert_eq!(OrdListSet::<&str>::from(["b", "c"]), &set1 & &set2);
+    }
+
+    #[test]
+    fn difference() {
+        let set1 = OrdListSet::<&str>::from(["a", "b", "c"]);
+        let set2 = OrdListSet::<&str>::from(["d", "e", "b", "c"]);
+        assert_eq!(OrdListSet::<&str>::from(["a"]), &set1 - &set2);
+        assert_eq!(OrdListSet::<&str>::from(["d", "e"]), &set2 - &set1);
+    }
+
+    #[test]
+    fn symmetric_difference() {
+        let set1 = OrdListSet::<&str>::from(["a", "b", "c"]);
+        let set2 = OrdListSet::<&str>::from(["d", "e", "b", "c"]);
+        assert_eq!(OrdListSet::<&str>::from(["a", "d", "e"]), &set1 ^ &set2);
+        assert_eq!(OrdListSet::<&str>::from(["a", "d", "e"]), &set2 ^ &set1);
     }
 }
