@@ -191,14 +191,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
 
     fn is_real_path_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
         if !self.elements.is_subset(set) {
-            println!("{self:?} elements are not a subset of {set:?}");
             false
         } else {
             let mut mut_set = set.clone();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.is_subset(set) {
-                        println!("{self:?}: Real child keys {r_child_keys:?} are not a subset of {set:?}");
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
@@ -221,27 +219,23 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             }
             true
         } else {
-            println!("{self:?}) is real path incompatible with {excerpt:?}");
             false
         }
     }
 
     fn is_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
         if !self.elements.is_subset(set) {
-            println!("{self:?} elements are not a subset of {set:?}");
             false
         } else {
             let mut mut_set = set.clone();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.is_subset(set) {
-                        println!("{self:?}: Real child keys {r_child_keys:?} are not a subset of {set:?}");
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
                 } else if let Some((_, v_child_keys)) = self.get_v_child_and_keys(&key) {
                     if !v_child_keys.is_subset(set) {
-                        println!("{self:?}: Virtual child keys {v_child_keys:?} are not a subset of {set:?}");
                         return false;
                     }
                     mut_set = &mut_set - &v_child_keys;
@@ -259,13 +253,11 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child.is_recursive_compatible_with(excerpt) {
-                        println!("REAL CHILD");
                         return false;
                     }
                     keys = &keys - &r_child_keys;
                 } else if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&key) {
                     if !v_child.is_recursive_compatible_with(excerpt) {
-                        println!("VIRTUAL CHILD");
                         return false;
                     }
                     keys = &keys - &v_child_keys;
@@ -273,7 +265,6 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             }
             true
         } else {
-            println!("{self:?}) is incompatible with {excerpt:?}");
             false
         }
     }
@@ -510,9 +501,7 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     fn is_disjoint_child_indices(&self, set: &BTreeSet<Rc<E>>) -> bool {
-        println!("IDCI({self:?}, {set:?}) start");
-        let result = self
-            .r_children
+        self.r_children
             .borrow()
             .oso_keys()
             .is_disjoint(set.oso_iter())
@@ -520,9 +509,7 @@ impl<E: ItemTraits> TreeNode<E> {
                 .v_children
                 .borrow()
                 .oso_keys()
-                .is_disjoint(set.oso_iter());
-        println!("IDCI end: {result:?}");
-        result
+                .is_disjoint(set.oso_iter())
     }
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
@@ -541,7 +528,11 @@ trait Engine<E: ItemTraits>: Sized {
     // Algorithm: 6.11
     fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
     // Algorithm 6.14
-    fn partial_matches(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>>;
+    fn partial_matches(
+        &self,
+        query: &BTreeSet<Rc<E>>,
+        skip_after_key: Option<&Rc<E>>,
+    ) -> BTreeSet<Rc<TreeNode<E>>>;
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
@@ -577,49 +568,56 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     }
 
     // Algorithm 6.14
-    fn partial_matches(&self, query: &BTreeSet<Rc<E>>) -> BTreeSet<Rc<TreeNode<E>>> {
-        println!("PM({self:?}, {query:?})");
-        return BTreeSet::new();
-        // if self.is_disjoint_child_indices(query) {
-        //     if !query.is_disjoint(&self.elements) {
-        //         println!("I {self:?} am the longest match to {query:?} down this path.");
-        //         BTreeSet::from([Rc::clone(self)])
-        //     } else {
-        //         println!("I {self:?} am not a partial match to {query:?}");
-        //         BTreeSet::new()
-        //     }
-        // } else {
-        //     let mut partial_matches = BTreeSet::new();
-        //     let mut r_query_elements = BTreeSet::from_iter(
-        //         query
-        //             .oso_iter()
-        //             .intersection(self.r_children.borrow().oso_keys())
-        //             .cloned(),
-        //     );
-        //     while let Some(r_query_element) = r_query_elements.pop_first() {
-        //         if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&r_query_element) {
-        //             if &r_query_element == r_child.elements.intersection(query).next().unwrap() {
-        //                 partial_matches = &partial_matches | &r_child.partial_matches(query);
-        //             }
-        //             r_query_elements = &r_query_elements - &r_child_keys;
-        //         }
-        //     }
-        //     let mut v_query_elements = BTreeSet::from_iter(
-        //         query
-        //             .oso_iter()
-        //             .intersection(self.v_children.borrow().oso_keys())
-        //             .cloned(),
-        //     );
-        //     while let Some(v_query_element) = v_query_elements.pop_first() {
-        //         if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&v_query_element) {
-        //             if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
-        //                 partial_matches = &partial_matches | &v_child.partial_matches(query);
-        //             }
-        //             v_query_elements = &v_query_elements - &v_child_keys;
-        //         }
-        //     }
-        //     partial_matches
-        // }
+    fn partial_matches(
+        &self,
+        query: &BTreeSet<Rc<E>>,
+        skip_after_key: Option<&Rc<E>>,
+    ) -> BTreeSet<Rc<TreeNode<E>>> {
+        if self.is_disjoint_child_indices(query) {
+            if !query.is_disjoint(&self.elements) {
+                BTreeSet::from([Rc::clone(self)])
+            } else {
+                BTreeSet::new()
+            }
+        } else {
+            let mut partial_matches = BTreeSet::new();
+            {
+                let r_children = self.r_children.borrow();
+                let mut r_query_iter = query.oso_iter().intersection(r_children.oso_keys());
+                if let Some(key) = skip_after_key {
+                    r_query_iter.advance_until(key);
+                }
+                let mut r_query_elements = BTreeSet::from_iter(r_query_iter.cloned());
+                while let Some(r_query_element) = r_query_elements.pop_first() {
+                    if let Some((r_child, r_child_keys)) =
+                        self.get_r_child_and_keys(&r_query_element)
+                    {
+                        if &r_query_element == r_child.elements.intersection(query).next().unwrap()
+                        {
+                            partial_matches =
+                                &partial_matches | &r_child.partial_matches(query, None);
+                        }
+                        r_query_elements = &r_query_elements - &r_child_keys;
+                    }
+                }
+            }
+            let v_children = self.v_children.borrow();
+            let mut v_query_iter = query.oso_iter().intersection(v_children.oso_keys());
+            if let Some(key) = skip_after_key {
+                v_query_iter.advance_until(key);
+            }
+            let mut v_query_elements = BTreeSet::from_iter(v_query_iter.cloned());
+            while let Some(v_query_element) = v_query_elements.pop_first() {
+                if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&v_query_element) {
+                    //if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
+                    if v_child.elements.contains(&v_query_element) {
+                        partial_matches = &partial_matches | &v_child.partial_matches(query, None);
+                    }
+                    v_query_elements = &v_query_elements - &v_child_keys;
+                }
+            }
+            partial_matches
+        }
     }
 }
 
@@ -692,6 +690,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         self.root.absorb(&insertion, &mut new_insert_is);
         debug_assert!(self.root.verify_tree());
         debug_assert!(self.root.elements.is_empty() && self.root.v_children.borrow().is_empty());
+        //self.root.walk_tree();
         insertion
     }
 
@@ -715,7 +714,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let query = self.convert(query);
         //debug_assert!(self.verify_tree());
         //return BTreeSet::new();
-        self.root.partial_matches(&query)
+        self.root.partial_matches(&query, None)
     }
 
     pub fn verify_tree(&self) -> bool {
@@ -815,7 +814,11 @@ mod tests {
                 .class(),
             Class::Insertion
         );
-        assert_eq!(rdt.partial_matches(BTreeSet::from(["a, b, c, d"])).len(), 1);
+        assert_eq!(
+            rdt.partial_matches(BTreeSet::from(["a", "b", "c", "d"]))
+                .len(),
+            1
+        );
         assert_eq!(rdt.partial_matches(BTreeSet::from(["a"])).len(), 1);
         assert_eq!(rdt.partial_matches(BTreeSet::from(["b"])).len(), 1);
         assert_eq!(rdt.partial_matches(BTreeSet::from(["c"])).len(), 1);
@@ -838,6 +841,10 @@ mod tests {
                 .unwrap()
                 .class(),
             Class::Both
+        );
+        assert_eq!(
+            rdt.partial_matches(BTreeSet::from(["a", "b", "c"])).len(),
+            1
         );
         assert_eq!(rdt.partial_matches(BTreeSet::from(["a"])).len(), 1);
         assert_eq!(rdt.partial_matches(BTreeSet::from(["b"])).len(), 1);
