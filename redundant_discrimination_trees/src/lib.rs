@@ -594,8 +594,8 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                     {
                         if &r_query_element == r_child.elements.intersection(query).next().unwrap()
                         {
-                            partial_matches =
-                                &partial_matches | &r_child.partial_matches(query, None);
+                            partial_matches = &partial_matches
+                                | &r_child.partial_matches(query, Some(&r_query_element));
                         }
                         r_query_elements = &r_query_elements - &r_child_keys;
                     }
@@ -611,7 +611,8 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                 if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&v_query_element) {
                     //if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
                     if v_child.elements.contains(&v_query_element) {
-                        partial_matches = &partial_matches | &v_child.partial_matches(query, None);
+                        partial_matches = &partial_matches
+                            | &v_child.partial_matches(query, Some(&v_query_element));
                     }
                     v_query_elements = &v_query_elements - &v_child_keys;
                 }
