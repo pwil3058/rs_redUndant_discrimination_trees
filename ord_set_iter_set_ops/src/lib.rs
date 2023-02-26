@@ -43,50 +43,10 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> {
     }
 }
 
-pub struct PeepAdvanceAdapter<I: Iterator> {
-    iter: I,
-    next_result: Option<I::Item>,
-}
-
-impl<I: Iterator> From<I> for PeepAdvanceAdapter<I> {
-    fn from(mut iter: I) -> Self {
-        let next_result = iter.next();
-        Self { iter, next_result }
-    }
-}
-
-impl<I: Iterator> Iterator for PeepAdvanceAdapter<I>
-where
-    I::Item: Clone,
-{
-    type Item = <I as Iterator>::Item;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(result) = self.next_result.clone() {
-            self.next_result = self.iter.next();
-            Some(result)
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a, T, I> PeepAdvanceIter<'a, T> for PeepAdvanceAdapter<I>
-where
-    T: Ord + 'a + Clone,
-    I: Iterator<Item = &'a T> + Clone,
-{
-    #[inline]
-    fn peep(&mut self) -> Option<&'a T> {
-        self.next_result.clone()
-    }
-}
-
 impl<'a, T, I> PeepAdvanceIter<'a, T> for Peekable<I>
 where
     T: 'a + Ord,
-    I: Iterator<Item = &'a T>,
+    I: Iterator<Item = &'a T> + Clone,
 {
     fn peep(&mut self) -> Option<&'a T> {
         self.peek().copied()
@@ -237,22 +197,23 @@ where
     T: 'a + Ord,
 {
     pub fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.sub(other)
+        Self::Difference(Box::new(self), Box::new(other))
     }
 
     pub fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitand(other)
+        Self::Intersection(Box::new(self), Box::new(other))
     }
 
     pub fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitxor(other)
+        Self::SymmetricDifference(Box::new(self), Box::new(other))
     }
 
     pub fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        self.bitor(other)
+        Self::Union(Box::new(self), Box::new(other))
     }
 }
 
+// TODO: move these back into PeekAdvanceIterator
 impl<'a, T: 'a + Ord> OrdSetOpsIter<'a, T> {
     #[allow(clippy::wrong_self_convention)]
     pub fn is_disjoint(mut self, mut other: Self) -> bool {
@@ -519,37 +480,37 @@ where
     }
 }
 
-pub trait SetOsoIterAdaption<'a, T: 'a + Ord, I>
+pub trait SetOsoIter<'a, T: 'a + Ord, I>
 where
     T: 'a + Ord + Clone,
     I: Iterator<Item = &'a T> + Clone,
 {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T>;
 
-    fn oso_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().difference(other.oso_iter())
-    }
-
-    fn oso_intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().intersection(other.oso_iter())
-    }
-
-    fn oso_symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().symmetric_difference(other.oso_iter())
-    }
-
-    fn oso_union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().union(other.oso_iter())
-    }
+    // fn oso_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    //     self.oso_iter().difference(other.oso_iter())
+    // }
+    //
+    // fn oso_intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    //     self.oso_iter().intersection(other.oso_iter())
+    // }
+    //
+    // fn oso_symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    //     self.oso_iter().symmetric_difference(other.oso_iter())
+    // }
+    //
+    // fn oso_union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
+    //     self.oso_iter().union(other.oso_iter())
+    // }
 }
 
-impl<'a, T: 'a + Ord + Clone> SetOsoIterAdaption<'a, T, btree_set::Iter<'a, T>> for BTreeSet<T> {
+impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T, btree_set::Iter<'a, T>> for BTreeSet<T> {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
-        OrdSetOpsIter::Plain(Box::new(PeepAdvanceAdapter::from(self.iter())))
+        OrdSetOpsIter::Plain(Box::new(self.iter().peekable()))
     }
 }
 
-pub trait MapOsoIterAdaption<'a, K, I>
+pub trait MapOsoIter<'a, K, I>
 where
     K: 'a + Ord + Clone,
     I: Iterator<Item = &'a K> + Clone,
@@ -557,12 +518,12 @@ where
     fn oso_keys(&'a self) -> OrdSetOpsIter<'a, K>;
 }
 
-impl<'a, K, V> MapOsoIterAdaption<'a, K, btree_map::Keys<'a, K, V>> for BTreeMap<K, V>
+impl<'a, K, V> MapOsoIter<'a, K, btree_map::Keys<'a, K, V>> for BTreeMap<K, V>
 where
     K: 'a + Ord + Clone,
 {
     fn oso_keys(&'a self) -> OrdSetOpsIter<'a, K> {
-        OrdSetOpsIter::Plain(Box::new(PeepAdvanceAdapter::from(self.keys())))
+        OrdSetOpsIter::Plain(Box::new(self.keys().peekable()))
     }
 }
 
@@ -628,7 +589,7 @@ mod tests {
         }
     }
 
-    impl<'a, T: 'a + Ord + Clone> SetOsoIterAdaption<'a, T, btree_set::Iter<'a, T>> for Set<'a, T> {
+    impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T, btree_set::Iter<'a, T>> for Set<'a, T> {
         fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
             OrdSetOpsIter::Plain(Box::new(self.iter()))
         }
