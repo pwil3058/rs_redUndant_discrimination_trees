@@ -1,5 +1,5 @@
 [package]
-name = "redundant_discrimation_trees"
+name = "redundant_discrimation_trees_bts"
 version = "0.1.0"
 edition = "2021"
 

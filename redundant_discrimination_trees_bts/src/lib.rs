@@ -5,15 +5,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-use ord_list_set::*;
-
 // TODO: undo using this trait after development is finished
 pub trait ItemTraits: Ord + Clone + Debug {}
 
 impl ItemTraits for &str {}
 
 type ChildMap<E> = BTreeMap<Rc<E>, Rc<TreeNode<E>>>;
-type ChildAndKeys<E> = (Rc<TreeNode<E>>, OrdListSet<Rc<E>>);
+type ChildAndKeys<E> = (Rc<TreeNode<E>>, BTreeSet<Rc<E>>);
 
 #[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Ord, Eq)]
@@ -40,17 +38,17 @@ impl<E: ItemTraits> Debug for ChildAndKeysStruct<E> {
 }
 
 trait ChildMapOps<'a, E: ItemTraits + 'a> {
-    fn get_keys(&self) -> OrdListSet<Rc<E>>;
+    fn get_keys(&self) -> BTreeSet<Rc<E>>;
     fn get_child(&self, key: &Rc<E>) -> Option<Rc<TreeNode<E>>>;
-    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> OrdListSet<Rc<E>>;
+    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>>;
     fn get_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>>;
     fn get_children_and_keys(&self) -> BTreeSet<ChildAndKeysStruct<E>>;
     fn insert_child<I: Iterator<Item = &'a Rc<E>>>(&mut self, iter: I, child: &Rc<TreeNode<E>>);
 }
 
 impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
-    fn get_keys(&self) -> OrdListSet<Rc<E>> {
-        OrdListSet::from_iter(self.keys().map(Rc::clone))
+    fn get_keys(&self) -> BTreeSet<Rc<E>> {
+        BTreeSet::from_iter(self.keys().map(Rc::clone))
     }
 
     fn get_child(&self, key: &Rc<E>) -> Option<Rc<TreeNode<E>>> {
@@ -58,8 +56,8 @@ impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
         Some(Rc::clone(child))
     }
 
-    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> OrdListSet<Rc<E>> {
-        OrdListSet::from_iter(
+    fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>> {
+        BTreeSet::from_iter(
             child
                 .elements
                 .iter()
@@ -84,7 +82,7 @@ impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
         let mut set = BTreeSet::new();
 
         let mut keys = self.get_keys();
-        while let Some(key) = keys.first() {
+        while let Some(key) = keys.pop_first() {
             let child_and_keys = self.get_child_and_keys(&key).unwrap();
             keys = &keys - &child_and_keys.1;
             set.insert(ChildAndKeysStruct(child_and_keys));
@@ -101,7 +99,7 @@ impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
 }
 
 pub struct TreeNode<E: ItemTraits> {
-    elements: OrdListSet<Rc<E>>,
+    elements: BTreeSet<Rc<E>>,
     r_children: RefCell<ChildMap<E>>,
     v_children: RefCell<ChildMap<E>>,
     insert_count: Cell<usize>,
@@ -125,7 +123,7 @@ impl<E: ItemTraits> Debug for TreeNode<E> {
 impl<E: ItemTraits> Default for TreeNode<E> {
     fn default() -> Self {
         Self {
-            elements: OrdListSet::default(),
+            elements: BTreeSet::new(),
             r_children: RefCell::new(BTreeMap::new()),
             v_children: RefCell::new(BTreeMap::new()),
             insert_count: Cell::new(0),
@@ -159,7 +157,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         Rc::new(Self::default())
     }
 
-    fn new_insert(elements: OrdListSet<Rc<E>>) -> Rc<Self> {
+    fn new_insert(elements: BTreeSet<Rc<E>>) -> Rc<Self> {
         Rc::new(Self {
             insert_count: Cell::new(1),
             elements,
@@ -167,7 +165,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         })
     }
 
-    fn new_subset(elements: OrdListSet<Rc<E>>, v_children: RefCell<ChildMap<E>>) -> Rc<Self> {
+    fn new_subset(elements: BTreeSet<Rc<E>>, v_children: RefCell<ChildMap<E>>) -> Rc<Self> {
         Rc::new(Self {
             elements,
             v_children,
@@ -191,12 +189,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         self.subset_count.set(self.subset_count.get() + 1)
     }
 
-    fn is_real_path_compatible_with(&self, set: &OrdListSet<Rc<E>>) -> bool {
+    fn is_real_path_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
         if !self.elements.is_subset(set) {
             false
         } else {
             let mut mut_set = set.clone();
-            while let Some(key) = mut_set.first() {
+            while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.is_subset(set) {
                         return false;
@@ -208,10 +206,10 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
-    fn is_recursive_real_path_compatible_with(&self, excerpt: &OrdListSet<Rc<E>>) -> bool {
+    fn is_recursive_real_path_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
         if self.is_real_path_compatible_with(excerpt) {
             let mut keys = excerpt - &self.elements;
-            while let Some(key) = keys.first() {
+            while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child.is_recursive_real_path_compatible_with(excerpt) {
                         return false;
@@ -225,12 +223,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
-    fn is_compatible_with(&self, set: &OrdListSet<Rc<E>>) -> bool {
+    fn is_compatible_with(&self, set: &BTreeSet<Rc<E>>) -> bool {
         if !self.elements.is_subset(set) {
             false
         } else {
             let mut mut_set = set.clone();
-            while let Some(key) = mut_set.first() {
+            while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.is_subset(set) {
                         return false;
@@ -247,12 +245,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         }
     }
 
-    fn is_recursive_compatible_with(&self, excerpt: &OrdListSet<Rc<E>>) -> bool {
+    fn is_recursive_compatible_with(&self, excerpt: &BTreeSet<Rc<E>>) -> bool {
         if &self.elements == excerpt {
             true
         } else if self.is_compatible_with(excerpt) {
             let mut keys = excerpt - &self.elements;
-            while let Some(key) = keys.first() {
+            while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child.is_recursive_compatible_with(excerpt) {
                         return false;
@@ -275,17 +273,17 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
 // Inline some child functions
 impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     #[inline]
-    fn get_r_keys(&self) -> OrdListSet<Rc<E>> {
+    fn get_r_keys(&self) -> BTreeSet<Rc<E>> {
         self.r_children.borrow().get_keys()
     }
     #[inline]
-    fn get_v_keys(&self) -> OrdListSet<Rc<E>> {
+    fn get_v_keys(&self) -> BTreeSet<Rc<E>> {
         self.v_children.borrow().get_keys()
     }
 
     // TODO: make this redundant by using oso technology
     #[inline]
-    fn get_merged_keys(&self) -> OrdListSet<Rc<E>> {
+    fn get_merged_keys(&self) -> BTreeSet<Rc<E>> {
         &self.get_r_keys() | &self.get_v_keys()
     }
 
@@ -333,7 +331,7 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     // Algorithm: 6.2
-    fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &OrdListSet<Rc<E>>) {
+    fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
@@ -345,7 +343,7 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     // Algorithm 6.3
-    fn split(&self, key: &Rc<E>, excerpt: &OrdListSet<Rc<E>>) {
+    fn split(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
         let elements = &r_child.elements & excerpt;
         let v_children = r_child.merged_children();
@@ -360,15 +358,15 @@ impl<E: ItemTraits> TreeNode<E> {
     #[allow(clippy::mutable_key_type)]
     fn reorganise_descendants_for_real_path_compatibility(
         &self,
-        excerpt: &OrdListSet<Rc<E>>,
+        excerpt: &BTreeSet<Rc<E>>,
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
         debug_assert!(self.elements.is_subset(excerpt));
-        let mut keys = OrdListSet::<Rc<E>>::from_iter(
-            (excerpt.iter() & self.r_children.borrow().oso_keys()).cloned(),
+        let mut keys = BTreeSet::<Rc<E>>::from_iter(
+            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
         );
-        while let Some(key) = keys.first() {
+        while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             let r_child_before = Rc::clone(&r_child);
             if !excerpt.is_superset(&r_child_keys) {
@@ -399,7 +397,7 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     // Algorithm 6.6
-    fn interpose_for_virtual_compatibility(&self, key: &Rc<E>, excerpt: &OrdListSet<Rc<E>>) {
+    fn interpose_for_virtual_compatibility(&self, key: &Rc<E>, excerpt: &BTreeSet<Rc<E>>) {
         let (v_child, v_child_keys) = self.get_v_child_and_keys(key).unwrap();
         let elements = &v_child.elements - excerpt;
         let v_children = v_child.merged_children();
@@ -413,14 +411,14 @@ impl<E: ItemTraits> TreeNode<E> {
     #[allow(clippy::mutable_key_type)]
     fn reorganise_descendants_for_full_compatibility(
         &self,
-        excerpt: &OrdListSet<Rc<E>>,
+        excerpt: &BTreeSet<Rc<E>>,
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys = OrdListSet::<Rc<E>>::from_iter(
-            (excerpt.iter() & self.v_children.borrow().oso_keys()).cloned(),
+        let mut keys = BTreeSet::<Rc<E>>::from_iter(
+            (excerpt.oso_iter() & self.v_children.borrow().oso_keys()).cloned(),
         );
-        while let Some(key) = keys.first() {
+        while let Some(key) = keys.pop_first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(&key).unwrap();
             if excerpt.is_superset(&v_child_keys) {
                 keys = &keys - &v_child_keys;
@@ -434,9 +432,10 @@ impl<E: ItemTraits> TreeNode<E> {
                 debug_assert!(self.is_compatible_with(excerpt));
             }
         }
-        let mut keys =
-            OrdListSet::from_iter((excerpt.iter() & self.r_children.borrow().oso_keys()).cloned());
-        while let Some(key) = keys.first() {
+        let mut keys = BTreeSet::from_iter(
+            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
+        );
+        while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             r_child.reorganise_descendants_for_full_compatibility(excerpt, base_node, changes);
             keys = &keys - &r_child_keys;
@@ -448,11 +447,7 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     #[allow(clippy::mutable_key_type)]
-    fn reorganize_paths_for_compatibility(
-        &self,
-        excerpt: &OrdListSet<Rc<E>>,
-        base_node: &Rc<Self>,
-    ) {
+    fn reorganize_paths_for_compatibility(&self, excerpt: &BTreeSet<Rc<E>>, base_node: &Rc<Self>) {
         let mut changes = BTreeSet::<(Rc<Self>, Rc<Self>)>::new();
         base_node.reorganise_descendants_for_real_path_compatibility(
             excerpt,
@@ -497,7 +492,7 @@ impl<E: ItemTraits> TreeNode<E> {
                 }
             }
             let mut keys = &keys & &self.get_r_keys();
-            while let Some(key) = keys.first() {
+            while let Some(key) = keys.pop_first() {
                 let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
                 r_child.fix_v_links_for_pair(nodes);
                 keys = &keys - &r_child_keys;
@@ -505,9 +500,16 @@ impl<E: ItemTraits> TreeNode<E> {
         }
     }
 
-    fn is_disjoint_child_indices(&self, set: &OrdListSet<Rc<E>>) -> bool {
-        self.r_children.borrow().oso_keys().is_disjoint(set.iter())
-            && self.v_children.borrow().oso_keys().is_disjoint(set.iter())
+    fn is_disjoint_child_indices(&self, set: &BTreeSet<Rc<E>>) -> bool {
+        self.r_children
+            .borrow()
+            .oso_keys()
+            .is_disjoint(set.oso_iter())
+            && self
+                .v_children
+                .borrow()
+                .oso_keys()
+                .is_disjoint(set.oso_iter())
     }
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
@@ -524,18 +526,18 @@ impl<E: ItemTraits> TreeNode<E> {
 
 trait Engine<E: ItemTraits>: Sized {
     // Algorithm: 6.11
-    fn absorb(&self, insertion: &OrdListSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
+    fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
     // Algorithm 6.14
     fn partial_matches(
         &self,
-        query: &OrdListSet<Rc<E>>,
+        query: &BTreeSet<Rc<E>>,
         skip_after_key: Option<&Rc<E>>,
     ) -> BTreeSet<Rc<TreeNode<E>>>;
 }
 
 impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm: 6.11
-    fn absorb(&self, insertion: &OrdListSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>) {
+    fn absorb(&self, insertion: &BTreeSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>) {
         debug_assert!(self.is_recursive_compatible_with(insertion));
         let keys = insertion - &self.elements;
         if keys.is_empty() {
@@ -556,7 +558,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                     *new_insert_is = Some(new_node);
                 }
             }
-            while let Some(key) = absorb_keys.first() {
+            while let Some(key) = absorb_keys.pop_first() {
                 let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
                 r_child.absorb(insertion, new_insert_is);
                 absorb_keys = &absorb_keys - &r_child_keys;
@@ -568,7 +570,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     // Algorithm 6.14
     fn partial_matches(
         &self,
-        query: &OrdListSet<Rc<E>>,
+        query: &BTreeSet<Rc<E>>,
         skip_after_key: Option<&Rc<E>>,
     ) -> BTreeSet<Rc<TreeNode<E>>> {
         if self.is_disjoint_child_indices(query) {
@@ -581,16 +583,16 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             let mut partial_matches = BTreeSet::new();
             {
                 let r_children = self.r_children.borrow();
-                let mut r_query_iter = query.iter().intersection(r_children.oso_keys());
+                let mut r_query_iter = query.oso_iter().intersection(r_children.oso_keys());
                 if let Some(key) = skip_after_key {
                     r_query_iter.advance_until(key);
                 }
-                let mut r_query_elements = OrdListSet::from_iter(r_query_iter.cloned());
-                while let Some(r_query_element) = r_query_elements.first() {
+                let mut r_query_elements = BTreeSet::from_iter(r_query_iter.cloned());
+                while let Some(r_query_element) = r_query_elements.pop_first() {
                     if let Some((r_child, r_child_keys)) =
                         self.get_r_child_and_keys(&r_query_element)
                     {
-                        if &r_query_element == &r_child.elements.intersection(query).next().unwrap()
+                        if &r_query_element == r_child.elements.intersection(query).next().unwrap()
                         {
                             partial_matches = &partial_matches
                                 | &r_child.partial_matches(query, Some(&r_query_element));
@@ -600,12 +602,12 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                 }
             }
             let v_children = self.v_children.borrow();
-            let mut v_query_iter = query.iter().intersection(v_children.oso_keys());
+            let mut v_query_iter = query.oso_iter().intersection(v_children.oso_keys());
             if let Some(key) = skip_after_key {
                 v_query_iter.advance_until(key);
             }
-            let mut v_query_elements = OrdListSet::from_iter(v_query_iter.cloned());
-            while let Some(v_query_element) = v_query_elements.first() {
+            let mut v_query_elements = BTreeSet::from_iter(v_query_iter.cloned());
+            while let Some(v_query_element) = v_query_elements.pop_first() {
                 if let Some((v_child, v_child_keys)) = self.get_v_child_and_keys(&v_query_element) {
                     //if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
                     if v_child.elements.contains(&v_query_element) {
@@ -636,7 +638,7 @@ pub trait AnswerPublicFace<E: ItemTraits> {
 
 impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
     fn elements(&self) -> OrdSetOpsIter<Rc<E>> {
-        self.elements.iter()
+        self.elements.oso_iter()
     }
 
     fn class(&self) -> Class {
@@ -668,35 +670,36 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
-    fn convert(&self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
-        // TODO: more elegant version of convert() is required
-        OrdListSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
+    fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
+        let mut insertion = BTreeSet::<Rc<E>>::new();
+        while let Some(element) = raw_excerpt.pop_first() {
             if let Some(key) = self.root.find_key(&element) {
-                Rc::clone(&key)
+                insertion.insert(Rc::clone(&key));
             } else {
-                Rc::new(element.clone())
+                insertion.insert(Rc::new(element));
             }
-        }))
+        }
+        insertion
     }
 
-    pub fn insert(&mut self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
+    pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
         let insertion = self.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&insertion, &self.root);
         debug_assert!(self.root.is_recursive_compatible_with(&insertion));
         let mut new_insert_is: Option<Rc<TreeNode<E>>> = None;
         self.root.absorb(&insertion, &mut new_insert_is);
-        //debug_assert!(self.root.verify_tree());
+        debug_assert!(self.root.verify_tree());
         debug_assert!(self.root.elements.is_empty() && self.root.v_children.borrow().is_empty());
         //self.root.walk_tree();
         insertion
     }
 
-    pub fn complete_match(&self, query: OrdListSet<E>) -> Option<Answer<E>> {
+    pub fn complete_match(&self, query: BTreeSet<E>) -> Option<Answer<E>> {
         let query = self.convert(query);
         let mut matched_node = Rc::clone(&self.root);
         // NB: even though root.elements is always empty we do this to get the right type of Iterator
-        while let Some(key) = query.difference(&matched_node.elements.clone()).next() {
+        while let Some(key) = query.difference(&matched_node.elements).next() {
             if let Some(r_child) = matched_node.get_r_child(key) {
                 matched_node = r_child;
             } else if let Some(v_child) = matched_node.get_v_child(key) {
@@ -708,8 +711,10 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         Some(matched_node)
     }
 
-    pub fn partial_matches(&self, query: OrdListSet<E>) -> BTreeSet<Answer<E>> {
+    pub fn partial_matches(&self, query: BTreeSet<E>) -> BTreeSet<Answer<E>> {
         let query = self.convert(query);
+        //debug_assert!(self.verify_tree());
+        //return BTreeSet::new();
         self.root.partial_matches(&query, None)
     }
 
@@ -722,8 +727,8 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 impl<E: ItemTraits> TreeNode<E> {
     fn verify_tree_node(&self) -> bool {
         let mut result = true;
-        let r_keys = self.get_r_keys();
-        let v_keys = self.get_v_keys();
+        let mut r_keys = self.get_r_keys();
+        let mut v_keys = self.get_v_keys();
         if !r_keys.is_disjoint(&self.elements) {
             println!(
                 "FAIL: TreeNode: {:?} Real Keys {r_keys:?} overlap  elements",
@@ -743,7 +748,7 @@ impl<E: ItemTraits> TreeNode<E> {
             println!("FAIL:  {self:?} real and virtual child keys overlap: {overlap:?}");
             result = false;
         };
-        for r_key in r_keys.iter() {
+        while let Some(r_key) = r_keys.pop_first() {
             let r_child = self.get_r_child(&r_key).unwrap();
             if r_child.elements.len() <= self.elements.len()
                 || !r_child.elements.is_superset(&self.elements)
@@ -752,7 +757,7 @@ impl<E: ItemTraits> TreeNode<E> {
                 result = false;
             }
         }
-        for v_key in v_keys.iter() {
+        while let Some(v_key) = v_keys.pop_first() {
             let v_child = self.get_v_child(&v_key).unwrap();
             if v_child.elements.len() <= self.elements.len()
                 || !v_child.elements.is_superset(&self.elements)
@@ -770,7 +775,7 @@ impl<E: ItemTraits> TreeNode<E> {
             false
         } else {
             let mut keys = self.get_r_keys();
-            while let Some(key) = keys.first() {
+            while let Some(key) = keys.pop_first() {
                 let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
                 keys = &keys - &r_child_keys;
                 if !r_child.verify_tree() {
@@ -779,7 +784,7 @@ impl<E: ItemTraits> TreeNode<E> {
                 }
             }
             let mut keys = self.get_v_keys();
-            while let Some(key) = keys.first() {
+            while let Some(key) = keys.pop_first() {
                 let (v_child, v_child_keys) = self.get_v_child_and_keys(&key).unwrap();
                 keys = &keys - &v_child_keys;
                 if !v_child.verify_tree() {
@@ -800,99 +805,99 @@ mod tests {
     fn it_works() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
         assert!(rdt
-            .complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            .complete_match(BTreeSet::from(["a", "b", "c", "d"]))
             .is_none());
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 0);
-        let _abcd = rdt.insert(OrdListSet::from(["a", "b", "c", "d"]));
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a"])).len(), 0);
+        let _abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.partial_matches(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.partial_matches(BTreeSet::from(["a", "b", "c", "d"]))
                 .len(),
             1
         );
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b", "c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["e"])).len(), 0);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["b"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["c"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a", "b"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["b", "c"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["c", "d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a", "d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["e"])).len(), 0);
 
-        let _abc = rdt.insert(OrdListSet::from(["a", "b", "c"]));
+        let _abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.partial_matches(OrdListSet::from(["a", "b", "c"])).len(),
+            rdt.partial_matches(BTreeSet::from(["a", "b", "c"])).len(),
             1
         );
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b", "c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["e"])).len(), 0);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["b"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["c"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a", "b"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["b", "c"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["c", "d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["a", "d"])).len(), 1);
+        assert_eq!(rdt.partial_matches(BTreeSet::from(["e"])).len(), 0);
 
-        let _abd = rdt.insert(OrdListSet::from(["a", "b", "d"]));
+        let _abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
 
-        let _ad = rdt.insert(OrdListSet::from(["a", "d"]));
+        let _ad = rdt.insert(BTreeSet::from(["a", "d"]));
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
@@ -902,74 +907,74 @@ mod tests {
     #[test]
     fn it_works_in_reverse_order() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
-        assert!(rdt.complete_match(OrdListSet::from(["a", "d"])).is_none());
-        let _ad = rdt.insert(OrdListSet::from(["a", "d"]));
-        //assert!(rdt.verify_tree(), "a,d");
+        assert!(rdt.complete_match(BTreeSet::from(["a", "d"])).is_none());
+        let _ad = rdt.insert(BTreeSet::from(["a", "d"]));
+        assert!(rdt.verify_tree(), "a,d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
 
-        let _abd = rdt.insert(OrdListSet::from(["a", "b", "d"]));
-        //assert!(rdt.verify_tree(), "a,b, d");
+        let _abd = rdt.insert(BTreeSet::from(["a", "b", "d"]));
+        assert!(rdt.verify_tree(), "a,b, d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
 
-        let _abc = rdt.insert(OrdListSet::from(["a", "b", "c"]));
-        //assert!(rdt.verify_tree(), "a,b, c");
+        let _abc = rdt.insert(BTreeSet::from(["a", "b", "c"]));
+        assert!(rdt.verify_tree(), "a,b, c");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
                 .unwrap()
                 .class(),
             Class::Insertion
         );
 
-        let _abcd = rdt.insert(OrdListSet::from(["a", "b", "c", "d"]));
-        //assert!(rdt.verify_tree(), "a,b, c, d");
+        let _abcd = rdt.insert(BTreeSet::from(["a", "b", "c", "d"]));
+        assert!(rdt.verify_tree(), "a,b, c, d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "d"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c"]))
                 .unwrap()
                 .class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
+            rdt.complete_match(BTreeSet::from(["a", "b", "c", "d"]))
                 .unwrap()
                 .class(),
             Class::Insertion

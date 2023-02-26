@@ -1,6 +1,7 @@
 // Copyright 2020 Peter Williams <pwil3058@gmail.com> <pwil3058@bigpond.net.au>
 //! Sets implemented as a sorted list.
 
+use std::collections::BTreeSet;
 use std::{
     iter::FromIterator,
     ops::{BitAnd, BitOr, BitXor, Sub},
@@ -11,7 +12,7 @@ use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter};
 /// A set of items of type T ordered according to Ord (with no duplicates)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdListSet<T: Ord> {
-    members: Vec<T>,
+    pub members: Vec<T>,
 }
 
 impl<T: Ord> Default for OrdListSet<T> {
@@ -198,6 +199,16 @@ impl<T: Ord, const N: usize> From<[T; N]> for OrdListSet<T> {
     }
 }
 
+impl<T: Ord> From<BTreeSet<T>> for OrdListSet<T> {
+    fn from(mut set: BTreeSet<T>) -> Self {
+        let mut members: Vec<T> = Vec::with_capacity(set.len());
+        while let Some(member) = set.pop_first() {
+            members.push(member);
+        }
+        Self { members }
+    }
+}
+
 impl<'a, T: Ord + Clone> From<OrdSetOpsIter<'a, T>> for OrdListSet<T> {
     fn from(oso_iter: OrdSetOpsIter<T>) -> Self {
         let members: Vec<T> = oso_iter.cloned().collect();
@@ -205,11 +216,24 @@ impl<'a, T: Ord + Clone> From<OrdSetOpsIter<'a, T>> for OrdListSet<T> {
     }
 }
 
+fn is_sorted<T: Ord>(list: &[T]) -> bool {
+    if !list.is_empty() {
+        let mut last = &list[0];
+        for element in list[1..].iter() {
+            if element <= last {
+                return false;
+            } else {
+                last = element;
+            }
+        }
+    }
+    true
+}
+
 impl<T: Ord> FromIterator<T> for OrdListSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut members: Vec<T> = iter.into_iter().collect();
-        members.sort_unstable();
-        members.dedup();
+        let members: Vec<T> = iter.into_iter().collect();
+        debug_assert!(is_sorted(&members));
         Self { members }
     }
 }
