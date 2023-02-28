@@ -60,7 +60,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
         self.members.get(index)
     }
 
-    pub fn get_subset(&self, range: impl RangeBounds<usize>) -> OrdListSet<T> {
+    pub fn items(&self, range: impl RangeBounds<usize>) -> &[T] {
         use std::ops::Bound;
         let members = match range.start_bound() {
             Bound::Included(start) => match range.end_bound() {
@@ -80,10 +80,71 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
             },
         };
         if let Some(members) = members {
-            Self::from(members)
+            members
         } else {
-            Self::empty_set()
+            &[]
         }
+    }
+
+    fn index_for(&self, item: &T) -> Option<usize> {
+        match self.members.binary_search(item) {
+            Ok(index) => Some(index),
+            _ => None,
+        }
+    }
+
+    pub fn item_items(&self, range: impl RangeBounds<T>) -> Result<&[T], usize> {
+        use std::ops::Bound;
+        let members = match range.start_bound() {
+            Bound::Included(start) => {
+                let start = self.members.binary_search(start)?;
+                match range.end_bound() {
+                    Bound::Included(end) => {
+                        let end = self.members.binary_search(end)?;
+                        self.members.get(start..=end)
+                    }
+                    Bound::Excluded(end) => {
+                        let end = self.members.binary_search(end)?;
+                        self.members.get(start..end)
+                    }
+                    Bound::Unbounded => self.members.get(start..),
+                }
+            }
+            Bound::Excluded(start) => {
+                let start = self.members.binary_search(start)?;
+                match range.end_bound() {
+                    Bound::Included(end) => {
+                        let end = self.members.binary_search(end)?;
+                        self.members.get(start + 1..=end)
+                    }
+                    Bound::Excluded(end) => {
+                        let end = self.members.binary_search(end)?;
+                        self.members.get(start + 1..end)
+                    }
+                    Bound::Unbounded => self.members.get(start..),
+                }
+            }
+            Bound::Unbounded => match range.end_bound() {
+                Bound::Included(end) => {
+                    let end = self.members.binary_search(end)?;
+                    self.members.get(..=end)
+                }
+                Bound::Excluded(end) => {
+                    let end = self.members.binary_search(end)?;
+                    self.members.get(..end)
+                }
+                Bound::Unbounded => self.members.get(..),
+            },
+        };
+        if let Some(members) = members {
+            Ok(members)
+        } else {
+            Err(0)
+        }
+    }
+
+    pub fn get_subset(&self, range: impl RangeBounds<usize>) -> OrdListSet<T> {
+        Self::from(self.items(range))
     }
 
     /// Returns a reference to the first element in the set, if any. This element is always the minimum of all elements in the set.
