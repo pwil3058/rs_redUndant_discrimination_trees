@@ -56,14 +56,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
         self.members.binary_search(item).is_ok()
     }
 
-    /// Returns a reference to an element or subslice depending on the type of index.
-    ///
-    ///If given a position, returns a reference to the element at that position or None if out of bounds.
-    ///If given a range, returns the subslice corresponding to that range, or None if out of bounds.
-    pub fn get<I>(&self, index: I) -> Option<&<I as std::slice::SliceIndex<[T]>>::Output>
-    where
-        I: std::slice::SliceIndex<[T]>,
-    {
+    pub fn get(&self, index: usize) -> Option<&T> {
         self.members.get(index)
     }
 
