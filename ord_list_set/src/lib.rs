@@ -1,10 +1,10 @@
 // Copyright 2020 Peter Williams <pwil3058@gmail.com> <pwil3058@bigpond.net.au>
 //! Sets implemented as a sorted list.
 
-use std::collections::BTreeSet;
 use std::{
+    collections::BTreeSet,
     iter::FromIterator,
-    ops::{BitAnd, BitOr, BitXor, Sub},
+    ops::{BitAnd, BitOr, BitXor, RangeBounds, Sub},
 };
 
 use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter};
@@ -50,7 +50,7 @@ impl<T: Ord> OrdListSet<T> {
 }
 
 // set functions that don't modify the set
-impl<'a, T: 'a + Ord> OrdListSet<T> {
+impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     ///Returns true if the set contains an element equal to the value.
     pub fn contains(&self, item: &T) -> bool {
         self.members.binary_search(item).is_ok()
@@ -65,6 +65,32 @@ impl<'a, T: 'a + Ord> OrdListSet<T> {
         I: std::slice::SliceIndex<[T]>,
     {
         self.members.get(index)
+    }
+
+    pub fn get_subset(&self, range: impl RangeBounds<usize>) -> OrdListSet<T> {
+        use std::ops::Bound;
+        let members = match range.start_bound() {
+            Bound::Included(start) => match range.end_bound() {
+                Bound::Included(end) => self.members.get(*start..=*end),
+                Bound::Excluded(end) => self.members.get(*start..*end),
+                Bound::Unbounded => self.members.get(*start..),
+            },
+            Bound::Excluded(start) => match range.end_bound() {
+                Bound::Included(end) => self.members.get(*start + 1..=*end),
+                Bound::Excluded(end) => self.members.get(*start + 1..*end),
+                Bound::Unbounded => self.members.get(*start..),
+            },
+            Bound::Unbounded => match range.end_bound() {
+                Bound::Included(end) => self.members.get(..=*end),
+                Bound::Excluded(end) => self.members.get(..*end),
+                Bound::Unbounded => self.members.get(..),
+            },
+        };
+        if let Some(members) = members {
+            Self::from(members)
+        } else {
+            Self::empty_set()
+        }
     }
 
     /// Returns a reference to the first element in the set, if any. This element is always the minimum of all elements in the set.
@@ -190,11 +216,34 @@ impl<'a, T: 'a + Ord> OrdListSet<T> {
     }
 }
 
+fn is_sorted_and_no_dups<T: Ord>(list: &[T]) -> bool {
+    if !list.is_empty() {
+        let mut last = &list[0];
+        for element in list[1..].iter() {
+            if element <= last {
+                return false;
+            } else {
+                last = element;
+            }
+        }
+    }
+    true
+}
+
 impl<T: Ord, const N: usize> From<[T; N]> for OrdListSet<T> {
     fn from(members: [T; N]) -> Self {
         let mut members = Vec::from(members);
         members.sort_unstable();
-        members.dedup();
+        debug_assert!(is_sorted_and_no_dups(&members));
+        Self { members }
+    }
+}
+
+impl<T: Ord + Clone> From<&[T]> for OrdListSet<T> {
+    fn from(members: &[T]) -> Self {
+        let mut members = Vec::from(members);
+        members.sort_unstable();
+        debug_assert!(is_sorted_and_no_dups(&members));
         Self { members }
     }
 }
@@ -216,24 +265,11 @@ impl<'a, T: Ord + Clone> From<OrdSetOpsIter<'a, T>> for OrdListSet<T> {
     }
 }
 
-fn is_sorted<T: Ord>(list: &[T]) -> bool {
-    if !list.is_empty() {
-        let mut last = &list[0];
-        for element in list[1..].iter() {
-            if element <= last {
-                return false;
-            } else {
-                last = element;
-            }
-        }
-    }
-    true
-}
-
 impl<T: Ord> FromIterator<T> for OrdListSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let members: Vec<T> = iter.into_iter().collect();
-        debug_assert!(is_sorted(&members));
+        let mut members: Vec<T> = iter.into_iter().collect();
+        members.sort_unstable();
+        debug_assert!(is_sorted_and_no_dups(&members));
         Self { members }
     }
 }
@@ -351,8 +387,9 @@ impl<'a, T: Ord> Iterator for OrdListSetIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let index = self.index;
         self.index += 1;
-        self.elements.get(self.index - 1)
+        self.elements.get(index)
     }
 }
 
@@ -439,5 +476,31 @@ mod tests {
         let set2 = OrdListSet::<&str>::from(["d", "e", "b", "c"]);
         assert_eq!(OrdListSet::<&str>::from(["a", "d", "e"]), &set1 ^ &set2);
         assert_eq!(OrdListSet::<&str>::from(["a", "d", "e"]), &set2 ^ &set1);
+    }
+
+    #[test]
+    fn get_subset() {
+        let set = OrdListSet::<&str>::from(["a", "b", "d", "e", "g", "h", "i"]);
+        assert_eq!(set.get_subset(..), set);
+        assert_eq!(
+            set.get_subset(1..),
+            OrdListSet::<&str>::from(["b", "d", "e", "g", "h", "i"])
+        );
+        assert_eq!(
+            set.get_subset(2..5),
+            OrdListSet::<&str>::from(["d", "e", "g"])
+        );
+        assert_eq!(
+            set.get_subset(2..=5),
+            OrdListSet::<&str>::from(["d", "e", "g", "h"])
+        );
+        assert_eq!(
+            set.get_subset(..5),
+            OrdListSet::<&str>::from(["a", "b", "d", "e", "g"])
+        );
+        assert_eq!(
+            set.get_subset(..=5),
+            OrdListSet::<&str>::from(["a", "b", "d", "e", "g", "h"])
+        );
     }
 }
