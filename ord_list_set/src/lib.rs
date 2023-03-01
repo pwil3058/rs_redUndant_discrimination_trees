@@ -3,11 +3,15 @@
 
 use std::{
     collections::BTreeSet,
+    fmt::Debug,
     iter::FromIterator,
     ops::{BitAnd, BitOr, BitXor, RangeBounds, Sub},
 };
 
 use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter};
+
+mod error;
+use error::Error;
 
 /// A set of items of type T ordered according to Ord (with no duplicates)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -41,7 +45,15 @@ impl<T: Ord> OrdListSet<T> {
     }
 
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
-    pub fn iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
+    // pub fn iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
+    //     OrdListSetIter {
+    //         elements: &self.members,
+    //         index: 0,
+    //     }
+    // }
+
+    /// Return an iterator over the members in the `OrdListSet` in ascending order.
+    pub fn oso_iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
         OrdSetOpsIter::Plain(Box::new(OrdListSetIter {
             elements: &self.members,
             index: 0,
@@ -86,39 +98,39 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
         }
     }
 
-    fn index_for(&self, item: &T) -> Option<usize> {
+    fn index_for(&self, item: &T) -> Result<usize, Error> {
         match self.members.binary_search(item) {
-            Ok(index) => Some(index),
-            _ => None,
+            Ok(index) => Ok(index),
+            Err(_) => Err(Error::NotInSet),
         }
     }
 
-    pub fn item_items(&self, range: impl RangeBounds<T>) -> Result<&[T], usize> {
+    pub fn item_items(&self, range: impl RangeBounds<T>) -> Result<&[T], Error> {
         use std::ops::Bound;
         let members = match range.start_bound() {
             Bound::Included(start) => {
-                let start = self.members.binary_search(start)?;
+                let start = self.index_for(start)?;
                 match range.end_bound() {
                     Bound::Included(end) => {
-                        let end = self.members.binary_search(end)?;
+                        let end = self.index_for(end)?;
                         self.members.get(start..=end)
                     }
                     Bound::Excluded(end) => {
-                        let end = self.members.binary_search(end)?;
+                        let end = self.index_for(end)?;
                         self.members.get(start..end)
                     }
                     Bound::Unbounded => self.members.get(start..),
                 }
             }
             Bound::Excluded(start) => {
-                let start = self.members.binary_search(start)?;
+                let start = self.index_for(start)?;
                 match range.end_bound() {
                     Bound::Included(end) => {
-                        let end = self.members.binary_search(end)?;
+                        let end = self.index_for(end)?;
                         self.members.get(start + 1..=end)
                     }
                     Bound::Excluded(end) => {
-                        let end = self.members.binary_search(end)?;
+                        let end = self.index_for(end)?;
                         self.members.get(start + 1..end)
                     }
                     Bound::Unbounded => self.members.get(start..),
@@ -126,21 +138,17 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
             }
             Bound::Unbounded => match range.end_bound() {
                 Bound::Included(end) => {
-                    let end = self.members.binary_search(end)?;
+                    let end = self.index_for(end)?;
                     self.members.get(..=end)
                 }
                 Bound::Excluded(end) => {
-                    let end = self.members.binary_search(end)?;
+                    let end = self.index_for(end)?;
                     self.members.get(..end)
                 }
                 Bound::Unbounded => self.members.get(..),
             },
         };
-        if let Some(members) = members {
-            Ok(members)
-        } else {
-            Err(0)
-        }
+        Ok(members.unwrap())
     }
 
     pub fn get_subset(&self, range: impl RangeBounds<usize>) -> OrdListSet<T> {
@@ -178,7 +186,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(difference, ["a", "f",]);
     /// ```
     pub fn difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.iter().difference(other.iter())
+        self.oso_iter().difference(other.oso_iter())
     }
 
     /// Visits the values representing the intersectio, i.e., all the values in both `self` and
@@ -196,7 +204,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(intersection, ["d", "h",]);
     /// ```
     pub fn intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.iter().intersection(other.iter())
+        self.oso_iter().intersection(other.oso_iter())
     }
 
     /// Visits the values representing the symmetric difference, i.e., all the values in `self` or
@@ -214,7 +222,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(symmetric_difference, ["a", "b", "c", "f", "i"]);
     /// ```
     pub fn symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.iter().symmetric_difference(other.iter())
+        self.oso_iter().symmetric_difference(other.oso_iter())
     }
 
     /// Visits the values representing the union, i.e., all the values in `self` or `other`,
@@ -232,41 +240,41 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(union, ["a", "b", "c", "d", "f", "h", "i",]);
     /// ```
     pub fn union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.iter().union(other.iter())
+        self.oso_iter().union(other.oso_iter())
     }
 
     /// Is the output of the given Iterator disjoint from the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_disjoint(&self, other: &'a Self) -> bool {
-        self.iter().is_disjoint(other.iter())
+        self.oso_iter().is_disjoint(other.oso_iter())
     }
 
     /// Is the output of the given Iterator a proper subset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_proper_subset(&self, other: &'a Self) -> bool {
-        self.iter().is_proper_subset(other.iter())
+        self.oso_iter().is_proper_subset(other.oso_iter())
     }
 
     /// Is the output of the given Iterator a proper superset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_proper_superset(&self, other: &'a Self) -> bool {
-        self.iter().is_proper_superset(other.iter())
+        self.oso_iter().is_proper_superset(other.oso_iter())
     }
 
     /// Is the output of the given Iterator a subset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_subset(&self, other: &'a Self) -> bool {
-        self.iter().is_subset(other.iter())
+        self.oso_iter().is_subset(other.oso_iter())
     }
 
     /// Is the output of the given Iterator a superset of the output of
     /// this iterator?
     pub fn is_superset(&self, other: &'a Self) -> bool {
-        self.iter().is_superset(other.iter())
+        self.oso_iter().is_superset(other.oso_iter())
     }
 }
 
@@ -556,5 +564,26 @@ mod tests {
             set.get_subset(..=5),
             OrdListSet::<&str>::from(["a", "b", "d", "e", "g", "h"])
         );
+    }
+
+    #[test]
+    fn item_items() {
+        let set = OrdListSet::<&str>::from(["a", "b", "d", "e", "g", "h", "i"]);
+        assert_eq!(
+            set.item_items(..).unwrap(),
+            ["a", "b", "d", "e", "g", "h", "i"]
+        );
+        assert_eq!(
+            set.item_items("b"..).unwrap(),
+            ["b", "d", "e", "g", "h", "i"]
+        );
+        assert_eq!(set.item_items("d".."h").unwrap(), ["d", "e", "g"]);
+        assert_eq!(set.item_items("d"..="h").unwrap(), ["d", "e", "g", "h"]);
+        assert_eq!(set.item_items(.."h").unwrap(), ["a", "b", "d", "e", "g"]);
+        assert_eq!(
+            set.item_items(..="h").unwrap(),
+            ["a", "b", "d", "e", "g", "h"]
+        );
+        assert!(set.item_items(..="j").is_err());
     }
 }
