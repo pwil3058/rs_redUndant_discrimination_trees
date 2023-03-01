@@ -671,15 +671,13 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
     fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
-        let mut insertion = BTreeSet::<Rc<E>>::new();
-        while let Some(element) = raw_excerpt.pop_first() {
+        BTreeSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
             if let Some(key) = self.root.find_key(&element) {
-                insertion.insert(Rc::clone(&key));
+                Rc::clone(&key)
             } else {
-                insertion.insert(Rc::new(element));
+                Rc::new(element.clone())
             }
-        }
-        insertion
+        }))
     }
 
     pub fn insert(&mut self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
