@@ -480,31 +480,53 @@ where
     }
 }
 
-pub trait SetOsoIter<'a, T: 'a + Ord, I>
+pub trait SetOsoIter<'a, T: 'a + Ord>
 where
     T: 'a + Ord + Clone,
-    I: Iterator<Item = &'a T> + Clone,
 {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T>;
 
-    // fn oso_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-    //     self.oso_iter().difference(other.oso_iter())
-    // }
-    //
-    // fn oso_intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-    //     self.oso_iter().intersection(other.oso_iter())
-    // }
-    //
-    // fn oso_symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-    //     self.oso_iter().symmetric_difference(other.oso_iter())
-    // }
-    //
-    // fn oso_union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-    //     self.oso_iter().union(other.oso_iter())
-    // }
+    fn oso_difference(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().difference(other.oso_iter())
+    }
+
+    fn oso_intersection(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().intersection(other.oso_iter())
+    }
+
+    fn oso_symmetric_difference(
+        &'a self,
+        other: &'a impl SetOsoIter<'a, T>,
+    ) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().symmetric_difference(other.oso_iter())
+    }
+
+    fn oso_union(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
+        self.oso_iter().union(other.oso_iter())
+    }
+
+    fn is_oso_disjoint(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
+        self.oso_iter().is_disjoint(other.oso_iter())
+    }
+
+    fn is_oso_subset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
+        self.oso_iter().is_subset(other.oso_iter())
+    }
+
+    fn is_oso_superset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
+        self.oso_iter().is_superset(other.oso_iter())
+    }
+
+    fn is_oso_proper_subset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
+        self.oso_iter().is_proper_subset(other.oso_iter())
+    }
+
+    fn is_oso_proper_superset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
+        self.oso_iter().is_proper_superset(other.oso_iter())
+    }
 }
 
-impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T, btree_set::Iter<'a, T>> for BTreeSet<T> {
+impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for BTreeSet<T> {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
         OrdSetOpsIter::Plain(Box::new(self.iter().peekable()))
     }
@@ -589,7 +611,7 @@ mod tests {
         }
     }
 
-    impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T, btree_set::Iter<'a, T>> for Set<'a, T> {
+    impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for Set<'a, T> {
         fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
             OrdSetOpsIter::Plain(Box::new(self.iter()))
         }
