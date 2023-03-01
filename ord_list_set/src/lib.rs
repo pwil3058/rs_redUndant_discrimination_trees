@@ -8,7 +8,7 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, RangeBounds, Sub},
 };
 
-use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter};
+use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter, SetOsoIter};
 
 mod error;
 use error::Error;
@@ -45,15 +45,17 @@ impl<T: Ord> OrdListSet<T> {
     }
 
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
-    // pub fn iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
-    //     OrdListSetIter {
-    //         elements: &self.members,
-    //         index: 0,
-    //     }
-    // }
+    pub fn iter<'a>(&'a self) -> OrdListSetIter<'a, T> {
+        OrdListSetIter {
+            elements: &self.members,
+            index: 0,
+        }
+    }
+}
 
+impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for OrdListSet<T> {
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
-    pub fn oso_iter<'a>(&'a self) -> OrdSetOpsIter<'a, T> {
+    fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
         OrdSetOpsIter::Plain(Box::new(OrdListSetIter {
             elements: &self.members,
             index: 0,
@@ -417,28 +419,7 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 }
 
 /// An Iterator over the elements in an ordered list in ascending order.  Implements the
-/// `PeepAdvanceIter` trait enable it to be used in set expressions (or chained functions)
-/// obviating the need for the creation of temporary sets to hold intermediate results.
-///
-/// # Examples
-/// ```
-/// use ord_list_set::OrdListSet;
-/// use ord_set_iter_set_ops::PeepAdvanceIter;
-///
-/// let a = OrdListSet::<u32>::from([1, 2, 3, 7, 8, 9]);
-/// let b = OrdListSet::<u32>::from([2, 3, 4]);
-/// let c = OrdListSet::<u32>::from([3, 5, 6]);
-/// let d = OrdListSet::<u32>::from([2, 7, 9]);
-///
-/// let slow_way = &(&(&a - &b) | &c) ^ &d;
-/// let fast_way: OrdListSet<u32> = (((a.iter() - b.iter()) | c.iter()) ^ d.iter()).cloned().collect();
-/// let chain_way: OrdListSet<u32> = a.difference(&b)
-///                                     .union(c.iter())
-///                                     .symmetric_difference(d.iter())
-///                                     .cloned().collect();
-/// assert_eq!(fast_way, slow_way);
-/// assert_eq!(fast_way, chain_way);
-/// ```
+/// `PeepAdvanceIter`.
 #[derive(Clone, Default)]
 pub struct OrdListSetIter<'a, T: Ord> {
     elements: &'a [T],
