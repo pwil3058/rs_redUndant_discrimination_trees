@@ -2,7 +2,7 @@ use std::{
     cmp::Ordering,
     collections::{
         btree_map::{self, BTreeMap},
-        btree_set::{self, BTreeSet},
+        btree_set::BTreeSet,
     },
     convert::Infallible,
     iter::Peekable,

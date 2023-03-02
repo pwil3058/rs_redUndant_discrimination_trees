@@ -287,12 +287,6 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         self.v_children.borrow().get_keys()
     }
 
-    // TODO: make this redundant by using oso technology
-    #[inline]
-    fn get_merged_keys(&self) -> BTreeSet<Rc<E>> {
-        &self.get_r_keys() | &self.get_v_keys()
-    }
-
     #[inline]
     fn get_r_child(&self, key: &Rc<E>) -> Option<Rc<TreeNode<E>>> {
         self.r_children.borrow().get_child(key)
@@ -471,7 +465,9 @@ impl<E: ItemTraits> TreeNode<E> {
             &mut changes,
         );
         debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
+        debug_assert!(self.verify_tree());
         base_node.reorganise_descendants_for_full_compatibility(excerpt, base_node, &mut changes);
+        debug_assert!(self.verify_tree());
     }
 
     // Algorithm 6.9
@@ -702,7 +698,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
-    fn convert(&self, mut raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
+    fn convert(&self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
         OrdListSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
             if let Some(key) = self.root.find_key(&element) {
                 Rc::clone(&key)
@@ -721,7 +717,6 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         self.root.absorb(&insertion, &mut new_insert_is);
         debug_assert!(self.root.verify_tree());
         debug_assert!(self.root.elements.is_empty() && self.root.v_children.borrow().is_empty());
-        //self.root.walk_tree();
         insertion
     }
 

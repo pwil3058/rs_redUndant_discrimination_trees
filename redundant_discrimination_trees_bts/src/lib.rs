@@ -670,7 +670,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
-    fn convert(&self, mut raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
+    fn convert(&self, raw_excerpt: BTreeSet<E>) -> BTreeSet<Rc<E>> {
         BTreeSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
             if let Some(key) = self.root.find_key(&element) {
                 Rc::clone(&key)
