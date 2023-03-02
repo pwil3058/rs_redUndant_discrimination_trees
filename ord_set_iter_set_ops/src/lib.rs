@@ -2,7 +2,7 @@ use std::{
     cmp::Ordering,
     collections::{
         btree_map::{self, BTreeMap},
-        btree_set::{self, BTreeSet},
+        btree_set::BTreeSet,
     },
     convert::Infallible,
     iter::Peekable,
@@ -12,8 +12,6 @@ use std::{
 
 pub mod error;
 pub mod ord_list_set;
-
-use ord_list_set::OrdListSetIter;
 
 /// Ordered Iterator over set operations on the contents of an ordered set.
 // TODO: add reset() function to PeepAdvanceIter
@@ -62,22 +60,10 @@ pub enum OrdSetOpsIter<'a, T>
 where
     T: Ord,
 {
-    Difference(
-        Box<Self>,
-        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
-    ),
-    Intersection(
-        Box<Self>,
-        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
-    ),
-    SymmetricDifference(
-        Box<Self>,
-        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
-    ),
-    Union(
-        Box<Self>,
-        Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>,
-    ),
+    Difference(Box<Self>, Box<Self>),
+    Intersection(Box<Self>, Box<Self>),
+    SymmetricDifference(Box<Self>, Box<Self>),
+    Union(Box<Self>, Box<Self>),
     Plain(Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>),
     _Phantom(Infallible, PhantomData<&'a T>),
 }
