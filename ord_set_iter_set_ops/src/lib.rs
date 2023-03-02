@@ -262,32 +262,7 @@ impl<'a, T: 'a + Ord> OrdSetOpsIter<'a, T> {
                 return false;
             }
         }
-        result
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_proper_superset(mut self, mut other: Self) -> bool {
-        let mut result = false;
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
-                match my_item.cmp(other_item) {
-                    Ordering::Less => {
-                        result = true;
-                        self.advance_until(other_item);
-                    }
-                    Ordering::Greater => {
-                        return false;
-                    }
-                    Ordering::Equal => {
-                        other.next();
-                        self.next();
-                    }
-                }
-            } else {
-                return false;
-            }
-        }
-        result
+        result || other.peep().is_some()
     }
 
     #[allow(clippy::wrong_self_convention)]
@@ -314,6 +289,31 @@ impl<'a, T: 'a + Ord> OrdSetOpsIter<'a, T> {
     }
 
     #[allow(clippy::wrong_self_convention)]
+    pub fn is_proper_superset(mut self, mut other: Self) -> bool {
+        let mut result = false;
+        while let Some(my_item) = self.peep() {
+            if let Some(other_item) = other.peep() {
+                match my_item.cmp(other_item) {
+                    Ordering::Less => {
+                        result = true;
+                        self.advance_until(other_item);
+                    }
+                    Ordering::Greater => {
+                        return false;
+                    }
+                    Ordering::Equal => {
+                        other.next();
+                        self.next();
+                    }
+                }
+            } else {
+                return true;
+            }
+        }
+        result && other.peep().is_none()
+    }
+
+    #[allow(clippy::wrong_self_convention)]
     pub fn is_superset(mut self, mut other: Self) -> bool {
         while let Some(my_item) = self.peep() {
             if let Some(other_item) = other.peep() {
@@ -330,10 +330,10 @@ impl<'a, T: 'a + Ord> OrdSetOpsIter<'a, T> {
                     }
                 }
             } else {
-                return false;
+                return true;
             }
         }
-        true
+        other.peep().is_none()
     }
 }
 
@@ -649,13 +649,71 @@ mod tests {
     #[test]
     fn is_disjoint() {
         debug_assert!(!BTreeSet::<&str>::from(["a", "b", "c", "d"])
-            .is_disjoint(&BTreeSet::<&str>::from(["a", "b", "c", "d"])));
+            .oso_iter()
+            .is_disjoint(BTreeSet::<&str>::from(["a", "b", "c", "d"]).oso_iter()));
         debug_assert!(!BTreeSet::<&str>::from(["a", "c", "e", "g"])
-            .is_disjoint(&BTreeSet::<&str>::from(["b", "d", "e", "f"])));
+            .oso_iter()
+            .is_disjoint(BTreeSet::<&str>::from(["b", "d", "e", "f"]).oso_iter()));
         debug_assert!(BTreeSet::<&str>::from(["a", "c", "e", "g"])
-            .is_disjoint(&BTreeSet::<&str>::from(["b", "d", "f", "h"])));
+            .oso_iter()
+            .is_disjoint(BTreeSet::<&str>::from(["b", "d", "f", "h"]).oso_iter()));
         debug_assert!(BTreeSet::<&str>::from(["b", "d", "f", "h"])
-            .is_disjoint(&BTreeSet::<&str>::from(["a", "c", "e", "g"])));
+            .oso_iter()
+            .is_disjoint(BTreeSet::<&str>::from(["a", "c", "e", "g"]).oso_iter()));
+    }
+
+    #[test]
+    fn is_superset() {
+        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
+        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
+        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
+        let empty_set = BTreeSet::<&str>::new();
+        debug_assert!(empty_set.oso_iter().is_superset(empty_set.oso_iter()));
+        debug_assert!(set1.oso_iter().is_superset(empty_set.oso_iter()));
+        debug_assert!(set1.oso_iter().is_superset(set1.oso_iter()));
+        debug_assert!(set1.oso_iter().is_superset(set2.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_superset(set3.oso_iter()));
+    }
+
+    #[test]
+    fn is_proper_superset() {
+        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
+        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
+        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
+        let empty_set = BTreeSet::<&str>::new();
+        debug_assert!(!empty_set
+            .oso_iter()
+            .is_proper_superset(empty_set.oso_iter()));
+        debug_assert!(set1.oso_iter().is_proper_superset(empty_set.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_proper_superset(set1.oso_iter()));
+        debug_assert!(set1.oso_iter().is_proper_superset(set2.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_proper_superset(set3.oso_iter()));
+    }
+
+    #[test]
+    fn is_subset() {
+        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
+        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
+        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
+        let empty_set = BTreeSet::<&str>::new();
+        debug_assert!(empty_set.oso_iter().is_subset(empty_set.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_subset(empty_set.oso_iter()));
+        debug_assert!(set1.oso_iter().is_subset(set1.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_subset(set2.oso_iter()));
+        debug_assert!(set1.oso_iter().is_subset(set3.oso_iter()));
+    }
+
+    #[test]
+    fn is_proper_subset() {
+        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
+        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
+        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
+        let empty_set = BTreeSet::<&str>::new();
+        debug_assert!(!empty_set.oso_iter().is_proper_subset(empty_set.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_proper_subset(empty_set.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_proper_subset(set1.oso_iter()));
+        debug_assert!(!set1.oso_iter().is_proper_subset(set2.oso_iter()));
+        debug_assert!(set1.oso_iter().is_proper_subset(set3.oso_iter()));
     }
 
     #[test]
