@@ -2,13 +2,18 @@ use std::{
     cmp::Ordering,
     collections::{
         btree_map::{self, BTreeMap},
-        btree_set::BTreeSet,
+        btree_set::{self, BTreeSet},
     },
     convert::Infallible,
     iter::Peekable,
     marker::PhantomData,
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
+
+pub mod error;
+pub mod ord_list_set;
+
+use ord_list_set::OrdListSetIter;
 
 /// Ordered Iterator over set operations on the contents of an ordered set.
 // TODO: add reset() function to PeepAdvanceIter

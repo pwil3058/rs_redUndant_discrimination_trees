@@ -8,10 +8,10 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, RangeBounds, Sub},
 };
 
-use ord_set_iter_set_ops::{self, OrdSetOpsIter, PeepAdvanceIter, SetOsoIter};
+use crate as ord_set_iter_set_ops;
+use ord_set_iter_set_ops::{OrdSetOpsIter, PeepAdvanceIter, SetOsoIter};
 
-mod error;
-use error::Error;
+use crate::error::Error;
 
 /// A set of items of type T ordered according to Ord (with no duplicates)
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
