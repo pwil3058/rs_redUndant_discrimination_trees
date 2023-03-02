@@ -365,7 +365,6 @@ impl<E: ItemTraits> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        debug_assert!(self.elements.is_subset(excerpt));
         let mut keys = BTreeSet::<Rc<E>>::from_iter(
             (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
         );
@@ -379,7 +378,6 @@ impl<E: ItemTraits> TreeNode<E> {
                 base_node
                     .fix_v_links_for_pair(&(Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
                 changes.insert((Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
-                debug_assert!(self.is_real_path_compatible_with(excerpt));
             } else if !excerpt.is_superset(&(&r_child.elements - &self.elements)) {
                 self.interpose_for_real_compatibility(&key, excerpt);
                 let r_child_after = self.get_r_child(&key).unwrap();
@@ -387,12 +385,10 @@ impl<E: ItemTraits> TreeNode<E> {
                 base_node
                     .fix_v_links_for_pair(&(Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
                 changes.insert((Rc::clone(&r_child_before), Rc::clone(&r_child_after)));
-                debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
             } else {
                 r_child.reorganise_descendants_for_real_path_compatibility(
                     excerpt, base_node, changes,
                 );
-                debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
             }
             keys = &keys - &r_child_keys;
         }
@@ -435,7 +431,6 @@ impl<E: ItemTraits> TreeNode<E> {
                 base_node.fix_v_links_for_pair(&(Rc::clone(&v_child), Rc::clone(&r_child)));
                 changes.insert((Rc::clone(&v_child), Rc::clone(&r_child)));
                 keys = &keys - &r_child_keys;
-                debug_assert!(self.is_compatible_with(excerpt));
             }
         }
         let mut keys = BTreeSet::from_iter(
@@ -464,8 +459,6 @@ impl<E: ItemTraits> TreeNode<E> {
             base_node,
             &mut changes,
         );
-        debug_assert!(self.is_recursive_real_path_compatible_with(excerpt));
-        debug_assert!(self.verify_tree());
         base_node.reorganise_descendants_for_full_compatibility(excerpt, base_node, &mut changes);
         debug_assert!(self.verify_tree());
     }
@@ -593,6 +586,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             }
             self.incr_subset_count();
         }
+        debug_assert!(self.verify_tree(), "{self:?}.absorb({insertion:?})");
     }
 
     // Algorithm 6.14
@@ -712,7 +706,6 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         let insertion = self.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&insertion, &self.root);
-        debug_assert!(self.root.is_recursive_compatible_with(&insertion));
         let mut new_insert_is: Option<Rc<TreeNode<E>>> = None;
         self.root.absorb(&insertion, &mut new_insert_is);
         debug_assert!(self.root.verify_tree());
@@ -738,8 +731,6 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 
     pub fn partial_matches(&self, query: OrdListSet<E>) -> BTreeSet<Answer<E>> {
         let query = self.convert(query);
-        //debug_assert!(self.verify_tree());
-        //return BTreeSet::new();
         self.root.partial_matches(&query, None)
     }
 
@@ -775,10 +766,8 @@ impl<E: ItemTraits> TreeNode<E> {
         };
         while let Some(r_key) = r_keys.pop_first() {
             let r_child = self.get_r_child(&r_key).unwrap();
-            if r_child.elements.len() <= self.elements.len()
-                || !r_child.elements.is_superset(&self.elements)
-            {
-                println!("FAIL: real child {r_child:?} is not a superset of me {self:?}");
+            if !r_child.elements.is_proper_superset(&self.elements) {
+                println!("FAIL: real child {r_child:?} is not a proper superset of me {self:?}");
                 result = false;
             }
         }
