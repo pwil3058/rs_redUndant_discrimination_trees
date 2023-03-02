@@ -8,8 +8,7 @@ use std::{
     ops::{BitAnd, BitOr, BitXor, RangeBounds, Sub},
 };
 
-use crate as ord_set_iter_set_ops;
-use ord_set_iter_set_ops::{OrdSetOpsIter, PeepAdvanceIter, SetOsoIter};
+use super::{OrdSetOpsIter, PeepAdvanceIter, SetOsoIter};
 
 use crate::error::Error;
 
@@ -179,7 +178,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -197,7 +196,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -215,7 +214,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<&str>::from(["a", "d", "f", "h"]);
     /// let b = OrdListSet::<&str>::from(["b", "c", "d", "i", "h"]);
@@ -233,7 +232,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a: OrdListSet<&str> = ["a", "d", "f", "h"].into();
     /// let b: OrdListSet<&str> = ["b", "c", "d", "i", "h"].into();
@@ -346,7 +345,7 @@ impl<T: Ord + Clone> Sub<&OrdListSet<T>> for &OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
     /// let b = OrdListSet::<u32>::from([2, 3, 4]);
@@ -366,7 +365,7 @@ impl<T: Ord + Clone> BitAnd<&OrdListSet<T>> for &OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
     /// let b = OrdListSet::<u32>::from([2, 3, 4]);
@@ -386,7 +385,7 @@ impl<T: Ord + Clone> BitXor<&OrdListSet<T>> for &OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<u32>::from([1, 2, 3, 5]);
     /// let b = OrdListSet::<u32>::from([2, 3, 4]);
@@ -406,7 +405,7 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
     /// # Examples
     ///
     /// ```
-    /// use ord_list_set::OrdListSet;
+    /// use ord_set_iter_set_ops::ord_list_set::OrdListSet;
     ///
     /// let a = OrdListSet::<u32>::from([1, 2, 3]);
     /// let b = OrdListSet::<u32>::from([2, 3, 4]);
