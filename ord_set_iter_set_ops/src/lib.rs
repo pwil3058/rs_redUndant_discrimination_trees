@@ -71,6 +71,29 @@ where
     _Phantom(Infallible, PhantomData<&'a T>),
 }
 
+// impl<'a, T: Ord> Clone for OrdSetOpsIter<'a, T>
+// where
+//     dyn PeepAdvanceIter<'a, T, Item = &'a T>: Clone,
+// {
+//     fn clone(&self) -> Self {
+//         use OrdSetOpsIter::*;
+//         match self {
+//             Difference(left_iter, right_iter) => Difference(left_iter.clone(), right_iter.clone()),
+//             Intersection(left_iter, right_iter) => {
+//                 Intersection(left_iter.clone(), right_iter.clone())
+//             }
+//             SymmetricDifference(left_iter, right_iter) => {
+//                 SymmetricDifference(left_iter.clone(), right_iter.clone())
+//             }
+//             Union(left_iter, right_iter) => Union(left_iter.clone(), right_iter.clone()),
+//             OrdListSet(iter) => OrdListSet(iter.clone()),
+//             BTreeSet(iter) => BTreeSet(iter.clone()),
+//             Plain(iter) => Plain(iter.clone()),
+//             _Phantom(a, b) => _Phantom(a.clone(), b.clone()),
+//         }
+//     }
+// }
+
 impl<'a, T> PeepAdvanceIter<'a, T> for OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
