@@ -1,8 +1,9 @@
+use crate::ord_list_set::OrdListSetIter;
 use std::{
     cmp::Ordering,
     collections::{
         btree_map::{self, BTreeMap},
-        btree_set::BTreeSet,
+        btree_set::{self, BTreeSet},
     },
     convert::Infallible,
     iter::Peekable,
@@ -64,6 +65,8 @@ where
     Intersection(Box<Self>, Box<Self>),
     SymmetricDifference(Box<Self>, Box<Self>),
     Union(Box<Self>, Box<Self>),
+    OrdListSet(OrdListSetIter<'a, T>),
+    BTreeSet(Peekable<btree_set::Iter<'a, T>>),
     Plain(Box<dyn PeepAdvanceIter<'a, T, Item = &'a T> + 'a>),
     _Phantom(Infallible, PhantomData<&'a T>),
 }
@@ -152,6 +155,8 @@ where
                     other_iter.peep()
                 }
             }
+            OrdListSet(ref mut iter) => iter.peep(),
+            BTreeSet(ref mut iter) => iter.peep(),
             Plain(ref mut iter) => iter.peep(),
             _ => None,
         }
@@ -174,6 +179,12 @@ where
             Self::Union(ref mut self_iter, ref mut other_iter) => {
                 self_iter.advance_until(target);
                 other_iter.advance_until(target);
+            }
+            Self::OrdListSet(ref mut iter) => {
+                iter.advance_until(target);
+            }
+            Self::BTreeSet(ref mut iter) => {
+                iter.advance_until(target);
             }
             Self::Plain(ref mut iter) => {
                 iter.advance_until(target);
@@ -417,6 +428,8 @@ where
                     other_iter.next()
                 }
             }
+            Self::OrdListSet(ref mut iter) => iter.next(),
+            Self::BTreeSet(ref mut iter) => iter.next(),
             Self::Plain(ref mut iter) => iter.next(),
             _ => None,
         }
@@ -519,7 +532,7 @@ where
 
 impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for BTreeSet<T> {
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
-        OrdSetOpsIter::Plain(Box::new(self.iter().peekable()))
+        OrdSetOpsIter::BTreeSet(self.iter().peekable())
     }
 }
 

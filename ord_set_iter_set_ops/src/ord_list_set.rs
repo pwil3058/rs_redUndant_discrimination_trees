@@ -55,10 +55,10 @@ impl<T: Ord> OrdListSet<T> {
 impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for OrdListSet<T> {
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
-        OrdSetOpsIter::Plain(Box::new(OrdListSetIter {
+        OrdSetOpsIter::OrdListSet(OrdListSetIter {
             elements: &self.members,
             index: 0,
-        }))
+        })
     }
 }
 
