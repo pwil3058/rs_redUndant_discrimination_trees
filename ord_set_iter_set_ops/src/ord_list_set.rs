@@ -171,7 +171,9 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     {
         self.members.last()
     }
+}
 
+impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// Visits the values representing the difference, i.e., all the values in `self` but not in
     /// `other`,without duplicates, in ascending order.
     ///
@@ -419,10 +421,19 @@ impl<T: Ord + Clone> BitOr<&OrdListSet<T>> for &OrdListSet<T> {
 
 /// An Iterator over the elements in an ordered list in ascending order.  Implements the
 /// `PeepAdvanceIter`.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct OrdListSetIter<'a, T: Ord> {
     elements: &'a [T],
     index: usize,
+}
+
+impl<'a, T: Ord> Clone for OrdListSetIter<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            elements: self.elements.clone(),
+            index: self.index,
+        }
+    }
 }
 
 impl<'a, T: Ord> Iterator for OrdListSetIter<'a, T> {
