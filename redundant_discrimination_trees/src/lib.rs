@@ -210,7 +210,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     fn is_recursive_real_path_compatible_with(&self, excerpt: &OrdListSet<Rc<E>>) -> bool {
         if self.is_real_path_compatible_with(excerpt) {
             let mut keys = BTreeSet::<Rc<E>>::from_iter(
-                (excerpt.oso_iter() - self.elements.oso_iter()).cloned(),
+                (&excerpt.oso_iter() - &self.elements.oso_iter()).cloned(),
             );
             while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
@@ -253,7 +253,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             true
         } else if self.is_compatible_with(excerpt) {
             let mut keys = BTreeSet::<Rc<E>>::from_iter(
-                (excerpt.oso_iter() - self.elements.oso_iter()).cloned(),
+                (&excerpt.oso_iter() - &self.elements.oso_iter()).cloned(),
             );
             while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
@@ -365,9 +365,14 @@ impl<E: ItemTraits> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys = BTreeSet::<Rc<E>>::from_iter(
-            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
-        );
+        let mut keys = {
+            let r_children = self.r_children.borrow();
+            //let r_oso_keys = r_children.oso_keys();
+            let keys = BTreeSet::<Rc<E>>::from_iter(
+                (&excerpt.oso_iter() & &r_children.oso_keys()).cloned(),
+            );
+            keys
+        };
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             let r_child_before = Rc::clone(&r_child);
@@ -417,9 +422,13 @@ impl<E: ItemTraits> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys = BTreeSet::<Rc<E>>::from_iter(
-            (excerpt.oso_iter() & self.v_children.borrow().oso_keys()).cloned(),
-        );
+        let mut keys = {
+            let v_children = self.v_children.borrow();
+            let keys = BTreeSet::<Rc<E>>::from_iter(
+                (&excerpt.oso_iter() & &v_children.oso_keys()).cloned(),
+            );
+            keys
+        };
         while let Some(key) = keys.pop_first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(&key).unwrap();
             if excerpt.is_oso_superset(&v_child_keys) {
@@ -433,9 +442,11 @@ impl<E: ItemTraits> TreeNode<E> {
                 keys = &keys - &r_child_keys;
             }
         }
-        let mut keys = BTreeSet::from_iter(
-            (excerpt.oso_iter() & self.r_children.borrow().oso_keys()).cloned(),
-        );
+        let mut keys = {
+            let r_children = self.r_children.borrow();
+            let keys = BTreeSet::from_iter((&excerpt.oso_iter() & &r_children.oso_keys()).cloned());
+            keys
+        };
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             r_child.reorganise_descendants_for_full_compatibility(excerpt, base_node, changes);
