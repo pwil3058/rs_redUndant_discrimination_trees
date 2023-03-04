@@ -486,7 +486,7 @@ where
 
     #[inline]
     fn bitand(self, other: Self) -> Self::Output {
-        OrdSetOpsIter::Intersection(Box::new(self.clone()), Box::new(other.clone()))
+        OrdSetOpsIter::intersection(self, other)
     }
 }
 
@@ -510,7 +510,7 @@ where
 
     #[inline]
     fn bitor(self, other: Self) -> Self::Output {
-        OrdSetOpsIter::Union(Box::new(self.clone()), Box::new(other.clone()))
+        OrdSetOpsIter::union(self, other)
     }
 }
 
