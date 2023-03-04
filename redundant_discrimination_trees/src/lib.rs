@@ -191,7 +191,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     }
 
     fn is_real_path_compatible_with(&self, set: &OrdListSet<Rc<E>>) -> bool {
-        if !self.elements.is_subset(&set) {
+        if !self.elements.is_subset(set) {
             false
         } else {
             let mut mut_set = BTreeSet::<Rc<E>>::from_iter(set.iter().cloned());
@@ -350,7 +350,7 @@ impl<E: ItemTraits> TreeNode<E> {
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(
-            excerpt.oso_iter().intersection(r_child_keys.oso_iter()),
+            excerpt.oso_iter().intersection(&r_child_keys.oso_iter()),
             &new_node,
         );
         debug_assert!(new_node.is_real_path_compatible_with(excerpt));
@@ -403,10 +403,10 @@ impl<E: ItemTraits> TreeNode<E> {
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(v_child.elements.difference(&new_node.elements), &v_child);
         self.insert_r_child(
-            excerpt.oso_iter().intersection(v_child_keys.oso_iter()),
+            excerpt.oso_iter().intersection(&v_child_keys.oso_iter()),
             &new_node,
         );
-        self.delete_v_children(excerpt.oso_iter().intersection(v_child_keys.oso_iter()));
+        self.delete_v_children(excerpt.oso_iter().intersection(&v_child_keys.oso_iter()));
     }
 
     // Algorithm 6.7
@@ -552,23 +552,25 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             self.incr_insert_count();
         } else {
             // Get these keys before any new child so that we don't double up
-            //let mut absorb_keys = &keys & &self.get_r_keys();
-            let mut absorb_keys = BTreeSet::<Rc<E>>::from_iter(
-                keys.oso_iter()
-                    .intersection(self.r_children.borrow().oso_keys())
-                    .cloned(),
-            );
-            //let unused_keys = &keys - &self.get_merged_keys();
-            let unused_keys = BTreeSet::<Rc<E>>::from_iter(
-                keys.oso_iter()
-                    .difference(
-                        self.r_children
-                            .borrow()
-                            .oso_keys()
-                            .union(self.v_children.borrow().oso_keys()),
-                    )
-                    .cloned(),
-            );
+            let mut absorb_keys = {
+                let r_children = self.r_children.borrow();
+                let absorb_keys = BTreeSet::<Rc<E>>::from_iter(
+                    keys.oso_iter()
+                        .intersection(&r_children.oso_keys())
+                        .cloned(),
+                );
+                absorb_keys
+            };
+            let unused_keys = {
+                let r_children = self.r_children.borrow();
+                let v_children = self.v_children.borrow();
+                let unused_keys = BTreeSet::<Rc<E>>::from_iter(
+                    keys.oso_iter()
+                        .difference(&r_children.oso_keys().union(&v_children.oso_keys()))
+                        .cloned(),
+                );
+                unused_keys
+            };
             if !unused_keys.is_empty() {
                 if let Some(new_node) = new_insert_is {
                     debug_assert_eq!(&new_node.elements, insertion);
@@ -605,7 +607,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             let mut partial_matches = BTreeSet::new();
             {
                 let r_children = self.r_children.borrow();
-                let mut r_query_iter = query.oso_iter().intersection(r_children.oso_keys());
+                let mut r_query_iter = query.oso_iter().intersection(&r_children.oso_keys());
                 if let Some(key) = skip_after_key {
                     r_query_iter.advance_until(key);
                 }
@@ -624,7 +626,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                 }
             }
             let v_children = self.v_children.borrow();
-            let mut v_query_iter = query.oso_iter().intersection(v_children.oso_keys());
+            let mut v_query_iter = query.oso_iter().intersection(&v_children.oso_keys());
             if let Some(key) = skip_after_key {
                 v_query_iter.advance_until(key);
             }

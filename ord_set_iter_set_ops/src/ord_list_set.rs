@@ -44,7 +44,7 @@ impl<T: Ord> OrdListSet<T> {
     }
 
     /// Return an iterator over the members in the `OrdListSet` in ascending order.
-    pub fn iter<'a>(&'a self) -> OrdListSetIter<'a, T> {
+    pub fn iter(&self) -> OrdListSetIter<T> {
         OrdListSetIter {
             elements: &self.members,
             index: 0,
@@ -189,7 +189,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(difference, ["a", "f",]);
     /// ```
     pub fn difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().difference(other.oso_iter())
+        self.oso_iter().difference(&other.oso_iter())
     }
 
     /// Visits the values representing the intersectio, i.e., all the values in both `self` and
@@ -207,7 +207,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(intersection, ["d", "h",]);
     /// ```
     pub fn intersection(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().intersection(other.oso_iter())
+        self.oso_iter().intersection(&other.oso_iter())
     }
 
     /// Visits the values representing the symmetric difference, i.e., all the values in `self` or
@@ -225,7 +225,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(symmetric_difference, ["a", "b", "c", "f", "i"]);
     /// ```
     pub fn symmetric_difference(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().symmetric_difference(other.oso_iter())
+        self.oso_iter().symmetric_difference(&other.oso_iter())
     }
 
     /// Visits the values representing the union, i.e., all the values in `self` or `other`,
@@ -243,7 +243,7 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// assert_eq!(union, ["a", "b", "c", "d", "f", "h", "i",]);
     /// ```
     pub fn union(&'a self, other: &'a Self) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().union(other.oso_iter())
+        self.oso_iter().union(&other.oso_iter())
     }
 
     /// Is the output of the given Iterator disjoint from the output of
@@ -430,7 +430,7 @@ pub struct OrdListSetIter<'a, T: Ord> {
 impl<'a, T: Ord> Clone for OrdListSetIter<'a, T> {
     fn clone(&self) -> Self {
         Self {
-            elements: self.elements.clone(),
+            elements: self.elements,
             index: self.index,
         }
     }

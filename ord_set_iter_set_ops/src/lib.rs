@@ -89,7 +89,7 @@ impl<'a, T: Ord> Clone for OrdSetOpsIter<'a, T> {
             OrdListSet(iter) => OrdListSet(iter.clone()),
             BTreeSet(iter) => BTreeSet(iter.clone()),
             Plain(iter) => Plain(iter.clone()),
-            _Phantom(a, _b) => _Phantom(a.clone(), _b.clone()),
+            _Phantom(a, _b) => _Phantom(*a, *_b),
         }
     }
 }
@@ -221,20 +221,20 @@ impl<'a, T> OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
 {
-    pub fn difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        Self::Difference(Box::new(self), Box::new(other))
+    pub fn difference(&self, other: &Self) -> OrdSetOpsIter<'a, T> {
+        Self::Difference(Box::new(self.clone()), Box::new(other.clone()))
     }
 
-    pub fn intersection(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        Self::Intersection(Box::new(self), Box::new(other))
+    pub fn intersection(&self, other: &Self) -> OrdSetOpsIter<'a, T> {
+        Self::Intersection(Box::new(self.clone()), Box::new(other.clone()))
     }
 
-    pub fn symmetric_difference(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        Self::SymmetricDifference(Box::new(self), Box::new(other))
+    pub fn symmetric_difference(&self, other: &Self) -> OrdSetOpsIter<'a, T> {
+        Self::SymmetricDifference(Box::new(self.clone()), Box::new(other.clone()))
     }
 
-    pub fn union(self, other: Self) -> OrdSetOpsIter<'a, T> {
-        Self::Union(Box::new(self), Box::new(other))
+    pub fn union(&self, other: &Self) -> OrdSetOpsIter<'a, T> {
+        Self::Union(Box::new(self.clone()), Box::new(other.clone()))
     }
 }
 
@@ -519,22 +519,22 @@ where
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T>;
 
     fn oso_difference(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().difference(other.oso_iter())
+        self.oso_iter().difference(&other.oso_iter())
     }
 
     fn oso_intersection(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().intersection(other.oso_iter())
+        self.oso_iter().intersection(&other.oso_iter())
     }
 
     fn oso_symmetric_difference(
         &'a self,
         other: &'a impl SetOsoIter<'a, T>,
     ) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().symmetric_difference(other.oso_iter())
+        self.oso_iter().symmetric_difference(&other.oso_iter())
     }
 
     fn oso_union(&'a self, other: &'a impl SetOsoIter<'a, T>) -> OrdSetOpsIter<'a, T> {
-        self.oso_iter().union(other.oso_iter())
+        self.oso_iter().union(&other.oso_iter())
     }
 
     fn is_oso_disjoint(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
