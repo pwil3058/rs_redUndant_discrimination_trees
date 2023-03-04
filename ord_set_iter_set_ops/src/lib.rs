@@ -478,6 +478,18 @@ where
     }
 }
 
+impl<'a, T> BitAnd for &OrdSetOpsIter<'a, T>
+where
+    T: 'a + Ord,
+{
+    type Output = OrdSetOpsIter<'a, T>;
+
+    #[inline]
+    fn bitand(self, other: Self) -> Self::Output {
+        OrdSetOpsIter::Intersection(Box::new(self.clone()), Box::new(other.clone()))
+    }
+}
+
 impl<'a, T> BitOr for OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
@@ -487,6 +499,18 @@ where
     #[inline]
     fn bitor(self, other: Self) -> Self::Output {
         Self::Union(Box::new(self), Box::new(other))
+    }
+}
+
+impl<'a, T> BitOr for &OrdSetOpsIter<'a, T>
+where
+    T: 'a + Ord,
+{
+    type Output = OrdSetOpsIter<'a, T>;
+
+    #[inline]
+    fn bitor(self, other: Self) -> Self::Output {
+        OrdSetOpsIter::Union(Box::new(self.clone()), Box::new(other.clone()))
     }
 }
 
@@ -502,6 +526,18 @@ where
     }
 }
 
+impl<'a, T> BitXor for &OrdSetOpsIter<'a, T>
+where
+    T: 'a + Ord,
+{
+    type Output = OrdSetOpsIter<'a, T>;
+
+    #[inline]
+    fn bitxor(self, other: Self) -> Self::Output {
+        OrdSetOpsIter::symmetric_difference(self, other)
+    }
+}
+
 impl<'a, T> Sub for OrdSetOpsIter<'a, T>
 where
     T: 'a + Ord,
@@ -511,6 +547,18 @@ where
     #[inline]
     fn sub(self, other: Self) -> Self::Output {
         Self::Difference(Box::new(self), Box::new(other))
+    }
+}
+
+impl<'a, T> Sub for &OrdSetOpsIter<'a, T>
+where
+    T: 'a + Ord,
+{
+    type Output = OrdSetOpsIter<'a, T>;
+
+    #[inline]
+    fn sub(self, other: Self) -> Self::Output {
+        OrdSetOpsIter::difference(self, other)
     }
 }
 
