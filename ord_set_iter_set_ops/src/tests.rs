@@ -14,6 +14,99 @@ fn oso_iter_ord_list_set() {
 }
 
 #[test]
+fn oso_peep_ord_list_set() {
+    let set1 = OrdListSet::<&str>::from(["a", "b", "c", "d"]);
+    let mut oso_iter = set1.oso_iter();
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+}
+
+#[test]
+fn oso_peep_intersection() {
+    let set1 = OrdListSet::<&str>::from(["a", "c", "e", "g"]);
+    let set2 = OrdListSet::<&str>::from(["b", "d", "f", "h"]);
+    let set3 = OrdListSet::<&str>::from(["c", "e", "d", "f"]);
+    let mut oso_iter = set1.oso_intersection(&set2);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_intersection(&set3);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+}
+
+#[test]
+fn oso_peep_difference() {
+    let set1 = OrdListSet::<&str>::from(["a", "c", "e", "g"]);
+    let set2 = OrdListSet::<&str>::from(["b", "d", "f", "h"]);
+    let set3 = OrdListSet::<&str>::from(["c", "e", "d", "f"]);
+    let mut oso_iter = set1.oso_difference(&set1);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_difference(&set2);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_difference(&set3);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+}
+
+#[test]
+fn oso_peep_symmetric_difference() {
+    let set1 = OrdListSet::<&str>::from(["a", "c", "e", "g"]);
+    let set2 = OrdListSet::<&str>::from(["b", "d", "f", "h"]);
+    let set3 = OrdListSet::<&str>::from(["c", "e", "d", "f"]);
+    let mut oso_iter = set1.oso_symmetric_difference(&set1);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_symmetric_difference(&set2);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_symmetric_difference(&set3);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+}
+
+#[test]
+fn oso_peep_union() {
+    let set1 = OrdListSet::<&str>::from(["a", "c", "e", "g"]);
+    let set2 = OrdListSet::<&str>::from(["b", "d", "f", "h"]);
+    let set3 = OrdListSet::<&str>::from(["c", "e", "d", "f"]);
+    let mut oso_iter = set1.oso_union(&set1);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_union(&set2);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+    let mut oso_iter = set1.oso_union(&set3);
+    while let Some(peep) = oso_iter.peep() {
+        assert_eq!(peep, oso_iter.next().unwrap());
+    }
+    assert_eq!(oso_iter.peep(), oso_iter.next());
+}
+
+#[test]
 fn advance_until_ord_list_set() {
     let set1 = OrdListSet::<&str>::from(["a", "b", "c", "d", "e", "f"]);
     let mut oso_iter = set1.oso_iter();
@@ -48,14 +141,14 @@ fn is_disjoint_btree_set() {
         set2.oso_iter().is_disjoint(&set3.oso_iter()),
         set2.oso_iter()
             .intersection(&set3.oso_iter())
-            .next()
+            .peep()
             .is_none()
     );
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set4.oso_iter()),
         set2.oso_iter()
             .intersection(&set4.oso_iter())
-            .next()
+            .peep()
             .is_none()
     );
 }
@@ -77,14 +170,14 @@ fn is_disjoint_ord_list_set() {
         set2.oso_iter().is_disjoint(&set3.oso_iter()),
         set2.oso_iter()
             .intersection(&set3.oso_iter())
-            .next()
+            .peep()
             .is_none()
     );
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set4.oso_iter()),
         set2.oso_iter()
             .intersection(&set4.oso_iter())
-            .next()
+            .peep()
             .is_none()
     );
 }

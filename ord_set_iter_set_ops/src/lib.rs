@@ -123,25 +123,22 @@ where
                 None
             }
             Intersection(ref mut self_iter, ref mut other_iter) => {
-                if let Some(l_item) = self_iter.peep() {
+                while let Some(l_item) = self_iter.peep() {
                     if let Some(r_item) = other_iter.peep() {
                         match l_item.cmp(r_item) {
                             Ordering::Less => {
                                 self_iter.advance_until(r_item);
-                                self_iter.peep()
                             }
                             Ordering::Greater => {
                                 other_iter.advance_until(l_item);
-                                other_iter.peep()
                             }
-                            Ordering::Equal => Some(l_item),
+                            Ordering::Equal => return Some(l_item),
                         }
                     } else {
-                        None
+                        return None;
                     }
-                } else {
-                    None
                 }
+                None
             }
             SymmetricDifference(ref mut self_iter, ref mut other_iter) => {
                 while let Some(l_item) = self_iter.peep() {
