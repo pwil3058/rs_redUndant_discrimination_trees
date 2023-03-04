@@ -139,17 +139,11 @@ fn is_disjoint_btree_set() {
     debug_assert!(empty_set.oso_iter().is_disjoint(&set2.oso_iter()));
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set3.oso_iter()),
-        set2.oso_iter()
-            .intersection(&set3.oso_iter())
-            .peep()
-            .is_none()
+        set2.oso_iter().intersection(&set3.oso_iter()).is_empty()
     );
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set4.oso_iter()),
-        set2.oso_iter()
-            .intersection(&set4.oso_iter())
-            .peep()
-            .is_none()
+        set2.oso_iter().intersection(&set4.oso_iter()).is_empty()
     );
 }
 
@@ -168,17 +162,11 @@ fn is_disjoint_ord_list_set() {
     debug_assert!(empty_set.oso_iter().is_disjoint(&set2.oso_iter()));
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set3.oso_iter()),
-        set2.oso_iter()
-            .intersection(&set3.oso_iter())
-            .peep()
-            .is_none()
+        set2.oso_iter().intersection(&set3.oso_iter()).is_empty()
     );
     debug_assert_eq!(
         set2.oso_iter().is_disjoint(&set4.oso_iter()),
-        set2.oso_iter()
-            .intersection(&set4.oso_iter())
-            .peep()
-            .is_none()
+        set2.oso_iter().intersection(&set4.oso_iter()).is_empty()
     );
 }
 

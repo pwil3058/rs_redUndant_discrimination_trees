@@ -22,6 +22,11 @@ pub trait PeepAdvanceIter<'a, T: 'a + Ord>: Iterator<Item = &'a T> + Clone {
     /// Peep at the next item in the iterator without advancing the iterator.
     fn peep(&mut self) -> Option<&'a T>;
 
+    /// Will the next next() call return None? I.e. is the iterator exhausted?
+    fn is_empty(&mut self) -> bool {
+        self.peep().is_none()
+    }
+
     /// Advance this iterator to the next item at or after the given item.
     /// Default implementation is O(n) but custom built implementations could be as good as O(log(n)).
     // TODO: try to make advance_until() return &mut Self
