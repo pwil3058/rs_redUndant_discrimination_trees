@@ -534,6 +534,7 @@ trait Engine<E: ItemTraits>: Sized {
     // Algorithm: 6.11
     fn absorb(&self, insertion: &OrdListSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
     // Algorithm 6.14
+    #[allow(clippy::mutable_key_type)]
     fn partial_matches(
         &self,
         query: &OrdListSet<Rc<E>>,
@@ -592,6 +593,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
     }
 
     // Algorithm 6.14
+    #[allow(clippy::mutable_key_type)]
     fn partial_matches(
         &self,
         query: &OrdListSet<Rc<E>>,
@@ -696,7 +698,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     /// instances where available.
     fn convert(&self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
         OrdListSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
-            if let Some(key) = self.root.find_key(&element) {
+            if let Some(key) = self.root.find_key(element) {
                 Rc::clone(&key)
             } else {
                 Rc::new(element.clone())
@@ -731,6 +733,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         Some(matched_node)
     }
 
+    #[allow(clippy::mutable_key_type)]
     pub fn partial_matches(&self, query: OrdListSet<E>) -> BTreeSet<Answer<E>> {
         let query = self.convert(query);
         self.root.partial_matches(&query, None)
