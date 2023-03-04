@@ -240,17 +240,18 @@ where
 
 // TODO: move these back into PeekAdvanceIterator
 impl<'a, T: 'a + Ord + Clone> OrdSetOpsIter<'a, T> {
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_disjoint(mut self, mut other: Self) -> bool {
+    pub fn is_disjoint(&self, other: &Self) -> bool {
+        let mut self_iter = self.clone();
+        let mut other_iter = other.clone();
         loop {
-            if let Some(my_item) = self.peep() {
-                if let Some(other_item) = other.peep() {
+            if let Some(my_item) = self_iter.peep() {
+                if let Some(other_item) = other_iter.peep() {
                     match my_item.cmp(other_item) {
                         Ordering::Less => {
-                            self.advance_until(other_item);
+                            self_iter.advance_until(other_item);
                         }
                         Ordering::Greater => {
-                            other.advance_until(my_item);
+                            other_iter.advance_until(my_item);
                         }
                         Ordering::Equal => {
                             return false;
@@ -265,45 +266,47 @@ impl<'a, T: 'a + Ord + Clone> OrdSetOpsIter<'a, T> {
         }
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_proper_subset(mut self, mut other: Self) -> bool {
+    pub fn is_proper_subset(&self, other: &Self) -> bool {
+        let mut self_iter = self.clone();
+        let mut other_iter = other.clone();
         let mut result = false;
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
+        while let Some(my_item) = self_iter.peep() {
+            if let Some(other_item) = other_iter.peep() {
                 match my_item.cmp(other_item) {
                     Ordering::Less => {
                         return false;
                     }
                     Ordering::Greater => {
                         result = true;
-                        other.advance_until(my_item);
+                        other_iter.advance_until(my_item);
                     }
                     Ordering::Equal => {
-                        other.next();
-                        self.next();
+                        other_iter.next();
+                        self_iter.next();
                     }
                 }
             } else {
                 return false;
             }
         }
-        result || other.peep().is_some()
+        result || other_iter.peep().is_some()
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_subset(mut self, mut other: Self) -> bool {
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
+    pub fn is_subset(&self, other: &Self) -> bool {
+        let mut self_iter = self.clone();
+        let mut other_iter = other.clone();
+        while let Some(my_item) = self_iter.peep() {
+            if let Some(other_item) = other_iter.peep() {
                 match my_item.cmp(other_item) {
                     Ordering::Less => {
                         return false;
                     }
                     Ordering::Greater => {
-                        other.advance_until(my_item);
+                        other_iter.advance_until(my_item);
                     }
                     Ordering::Equal => {
-                        other.next();
-                        self.next();
+                        other_iter.next();
+                        self_iter.next();
                     }
                 }
             } else {
@@ -313,52 +316,54 @@ impl<'a, T: 'a + Ord + Clone> OrdSetOpsIter<'a, T> {
         true
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_proper_superset(mut self, mut other: Self) -> bool {
+    pub fn is_proper_superset(&self, other: &Self) -> bool {
+        let mut self_iter = self.clone();
+        let mut other_iter = other.clone();
         let mut result = false;
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
+        while let Some(my_item) = self_iter.peep() {
+            if let Some(other_item) = other_iter.peep() {
                 match my_item.cmp(other_item) {
                     Ordering::Less => {
                         result = true;
-                        self.advance_until(other_item);
+                        self_iter.advance_until(other_item);
                     }
                     Ordering::Greater => {
                         return false;
                     }
                     Ordering::Equal => {
-                        other.next();
-                        self.next();
+                        other_iter.next();
+                        self_iter.next();
                     }
                 }
             } else {
                 return true;
             }
         }
-        result && other.peep().is_none()
+        result && other_iter.peep().is_none()
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    pub fn is_superset(mut self, mut other: Self) -> bool {
-        while let Some(my_item) = self.peep() {
-            if let Some(other_item) = other.peep() {
+    pub fn is_superset(&self, other: &Self) -> bool {
+        let mut self_iter = self.clone();
+        let mut other_iter = other.clone();
+        while let Some(my_item) = self_iter.peep() {
+            if let Some(other_item) = other_iter.peep() {
                 match my_item.cmp(other_item) {
                     Ordering::Less => {
-                        self.advance_until(other_item);
+                        self_iter.advance_until(other_item);
                     }
                     Ordering::Greater => {
                         return false;
                     }
                     Ordering::Equal => {
-                        other.next();
-                        self.next();
+                        other_iter.next();
+                        self_iter.next();
                     }
                 }
             } else {
                 return true;
             }
         }
-        other.peep().is_none()
+        other_iter.peep().is_none()
     }
 }
 
@@ -533,23 +538,23 @@ where
     }
 
     fn is_oso_disjoint(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
-        self.oso_iter().is_disjoint(other.oso_iter())
+        self.oso_iter().is_disjoint(&other.oso_iter())
     }
 
     fn is_oso_subset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
-        self.oso_iter().is_subset(other.oso_iter())
+        self.oso_iter().is_subset(&other.oso_iter())
     }
 
     fn is_oso_superset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
-        self.oso_iter().is_superset(other.oso_iter())
+        self.oso_iter().is_superset(&other.oso_iter())
     }
 
     fn is_oso_proper_subset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
-        self.oso_iter().is_proper_subset(other.oso_iter())
+        self.oso_iter().is_proper_subset(&other.oso_iter())
     }
 
     fn is_oso_proper_superset(&'a self, other: &'a impl SetOsoIter<'a, T>) -> bool {
-        self.oso_iter().is_proper_superset(other.oso_iter())
+        self.oso_iter().is_proper_superset(&other.oso_iter())
     }
 }
 
@@ -577,180 +582,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    //use crate::OrdSetOpsIterator;
-
-    struct Set<'a, T: 'a + Ord> {
-        vec: Vec<T>,
-        phantom: PhantomData<&'a T>,
-    }
-
-    impl<'a, T: Ord + Clone> From<Vec<T>> for Set<'a, T> {
-        fn from(mut elements: Vec<T>) -> Self {
-            elements.sort();
-            elements.dedup();
-            Self {
-                vec: elements,
-                phantom: PhantomData,
-            }
-        }
-    }
-
-    #[derive(Clone)]
-    struct SetIter<'a, T: Ord + Clone> {
-        elements: &'a [T],
-        index: usize,
-    }
-
-    impl<'a, T: Ord + Clone> Iterator for SetIter<'a, T> {
-        type Item = &'a T;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            if let Some(element) = self.elements.get(self.index) {
-                self.index += 1;
-                Some(element)
-            } else {
-                None
-            }
-        }
-    }
-
-    impl<'a, T: 'a + Ord + Clone> PeepAdvanceIter<'a, T> for SetIter<'a, T> {
-        fn advance_until(&mut self, t: &T) {
-            self.index += match self.elements[self.index..].binary_search(t) {
-                Ok(index) => index,
-                Err(index) => index,
-            };
-        }
-
-        fn peep(&mut self) -> Option<&'a T> {
-            self.elements.get(self.index)
-        }
-    }
-
-    impl<'a, T: 'a + Ord + Clone> Set<'a, T> {
-        pub fn iter(&'a self) -> SetIter<'a, T> {
-            SetIter {
-                elements: &self.vec,
-                index: 0,
-            }
-        }
-    }
-
-    impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for Set<'a, T> {
-        fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
-            OrdSetOpsIter::Plain(Box::new(self.iter()))
-        }
-    }
-
-    #[test]
-    fn oso_iter() {
-        let set1 = Set::<&str>::from(vec!["a", "b", "c", "d"]);
-        let mut oso_iter = set1.oso_iter();
-        assert_eq!(oso_iter.next(), Some(&"a"));
-        assert_eq!(oso_iter.next(), Some(&"b"));
-        assert_eq!(oso_iter.next(), Some(&"c"));
-        assert_eq!(oso_iter.next(), Some(&"d"));
-        assert_eq!(oso_iter.next(), None);
-    }
-
-    #[test]
-    fn advance_until() {
-        let set1 = Set::<&str>::from(vec!["a", "b", "c", "d", "e", "f"]);
-        let mut oso_iter = set1.oso_iter();
-        oso_iter.advance_until(&"c");
-    }
-
-    #[test]
-    fn oso_iter_b_tree_set() {
-        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
-        let mut oso_iter = set1.oso_iter();
-        assert_eq!(oso_iter.next(), Some(&"a"));
-        assert_eq!(oso_iter.next(), Some(&"b"));
-        assert_eq!(oso_iter.next(), Some(&"c"));
-        assert_eq!(oso_iter.next(), Some(&"d"));
-        assert_eq!(oso_iter.next(), None);
-    }
-
-    #[test]
-    fn is_disjoint() {
-        debug_assert!(!BTreeSet::<&str>::from(["a", "b", "c", "d"])
-            .oso_iter()
-            .is_disjoint(BTreeSet::<&str>::from(["a", "b", "c", "d"]).oso_iter()));
-        debug_assert!(!BTreeSet::<&str>::from(["a", "c", "e", "g"])
-            .oso_iter()
-            .is_disjoint(BTreeSet::<&str>::from(["b", "d", "e", "f"]).oso_iter()));
-        debug_assert!(BTreeSet::<&str>::from(["a", "c", "e", "g"])
-            .oso_iter()
-            .is_disjoint(BTreeSet::<&str>::from(["b", "d", "f", "h"]).oso_iter()));
-        debug_assert!(BTreeSet::<&str>::from(["b", "d", "f", "h"])
-            .oso_iter()
-            .is_disjoint(BTreeSet::<&str>::from(["a", "c", "e", "g"]).oso_iter()));
-    }
-
-    #[test]
-    fn is_superset() {
-        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
-        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
-        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
-        let empty_set = BTreeSet::<&str>::new();
-        debug_assert!(empty_set.oso_iter().is_superset(empty_set.oso_iter()));
-        debug_assert!(set1.oso_iter().is_superset(empty_set.oso_iter()));
-        debug_assert!(set1.oso_iter().is_superset(set1.oso_iter()));
-        debug_assert!(set1.oso_iter().is_superset(set2.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_superset(set3.oso_iter()));
-    }
-
-    #[test]
-    fn is_proper_superset() {
-        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
-        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
-        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
-        let empty_set = BTreeSet::<&str>::new();
-        debug_assert!(!empty_set
-            .oso_iter()
-            .is_proper_superset(empty_set.oso_iter()));
-        debug_assert!(set1.oso_iter().is_proper_superset(empty_set.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_proper_superset(set1.oso_iter()));
-        debug_assert!(set1.oso_iter().is_proper_superset(set2.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_proper_superset(set3.oso_iter()));
-    }
-
-    #[test]
-    fn is_subset() {
-        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
-        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
-        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
-        let empty_set = BTreeSet::<&str>::new();
-        debug_assert!(empty_set.oso_iter().is_subset(empty_set.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_subset(empty_set.oso_iter()));
-        debug_assert!(set1.oso_iter().is_subset(set1.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_subset(set2.oso_iter()));
-        debug_assert!(set1.oso_iter().is_subset(set3.oso_iter()));
-    }
-
-    #[test]
-    fn is_proper_subset() {
-        let set1 = BTreeSet::<&str>::from(["a", "b", "c", "d"]);
-        let set2 = BTreeSet::<&str>::from(["b", "c", "d"]);
-        let set3 = BTreeSet::<&str>::from(["a", "b", "c", "d", "e"]);
-        let empty_set = BTreeSet::<&str>::new();
-        debug_assert!(!empty_set.oso_iter().is_proper_subset(empty_set.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_proper_subset(empty_set.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_proper_subset(set1.oso_iter()));
-        debug_assert!(!set1.oso_iter().is_proper_subset(set2.oso_iter()));
-        debug_assert!(set1.oso_iter().is_proper_subset(set3.oso_iter()));
-    }
-
-    #[test]
-    fn oso_iter_b_tree_map() {
-        let set1 = BTreeMap::<&str, i32>::from([("a", 1), ("b", 2), ("c", 3), ("d", 4)]);
-        let mut oso_iter = set1.oso_keys();
-        assert_eq!(oso_iter.next(), Some(&"a"));
-        assert_eq!(oso_iter.next(), Some(&"b"));
-        assert_eq!(oso_iter.next(), Some(&"c"));
-        assert_eq!(oso_iter.next(), Some(&"d"));
-        assert_eq!(oso_iter.next(), None);
-    }
-}
+mod tests;

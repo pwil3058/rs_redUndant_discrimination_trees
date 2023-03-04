@@ -250,34 +250,34 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_disjoint(&self, other: &'a Self) -> bool {
-        self.oso_iter().is_disjoint(other.oso_iter())
+        self.oso_iter().is_disjoint(&other.oso_iter())
     }
 
     /// Is the output of the given Iterator a proper subset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_proper_subset(&self, other: &'a Self) -> bool {
-        self.oso_iter().is_proper_subset(other.oso_iter())
+        self.oso_iter().is_proper_subset(&other.oso_iter())
     }
 
     /// Is the output of the given Iterator a proper superset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_proper_superset(&self, other: &'a Self) -> bool {
-        self.oso_iter().is_proper_superset(other.oso_iter())
+        self.oso_iter().is_proper_superset(&other.oso_iter())
     }
 
     /// Is the output of the given Iterator a subset of the output of
     /// this iterator?
     #[allow(clippy::wrong_self_convention)]
     pub fn is_subset(&self, other: &'a Self) -> bool {
-        self.oso_iter().is_subset(other.oso_iter())
+        self.oso_iter().is_subset(&other.oso_iter())
     }
 
     /// Is the output of the given Iterator a superset of the output of
     /// this iterator?
     pub fn is_superset(&self, other: &'a Self) -> bool {
-        self.oso_iter().is_superset(other.oso_iter())
+        self.oso_iter().is_superset(&other.oso_iter())
     }
 }
 

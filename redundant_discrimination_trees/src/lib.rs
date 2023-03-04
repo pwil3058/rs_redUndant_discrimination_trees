@@ -191,13 +191,13 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     }
 
     fn is_real_path_compatible_with(&self, set: &OrdListSet<Rc<E>>) -> bool {
-        if !self.elements.is_subset(set) {
+        if !self.elements.is_subset(&set) {
             false
         } else {
             let mut mut_set = BTreeSet::<Rc<E>>::from_iter(set.iter().cloned());
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
-                    if !r_child_keys.oso_iter().is_subset(set.oso_iter()) {
+                    if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
@@ -233,12 +233,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             let mut mut_set = BTreeSet::<Rc<E>>::from_iter(set.iter().cloned());
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
-                    if !r_child_keys.oso_iter().is_subset(set.oso_iter()) {
+                    if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
                 } else if let Some((_, v_child_keys)) = self.get_v_child_and_keys(&key) {
-                    if !v_child_keys.oso_iter().is_subset(set.oso_iter()) {
+                    if !v_child_keys.oso_iter().is_subset(&set.oso_iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &v_child_keys;
@@ -371,7 +371,7 @@ impl<E: ItemTraits> TreeNode<E> {
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             let r_child_before = Rc::clone(&r_child);
-            if !excerpt.oso_iter().is_superset(r_child_keys.oso_iter()) {
+            if !excerpt.oso_iter().is_superset(&r_child_keys.oso_iter()) {
                 self.split(&key, excerpt);
                 let r_child_after = self.get_r_child(&key).unwrap();
                 r_child_after.fix_v_links_for_changes(changes);
@@ -510,12 +510,12 @@ impl<E: ItemTraits> TreeNode<E> {
         self.r_children
             .borrow()
             .oso_keys()
-            .is_disjoint(set.oso_iter())
+            .is_disjoint(&set.oso_iter())
             && self
                 .v_children
                 .borrow()
                 .oso_keys()
-                .is_disjoint(set.oso_iter())
+                .is_disjoint(&set.oso_iter())
     }
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
