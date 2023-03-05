@@ -323,6 +323,12 @@ impl<T: Ord> From<BTreeSet<T>> for OrdListSet<T> {
     }
 }
 
+impl<T: Ord + Clone> Into<BTreeSet<T>> for OrdListSet<T> {
+    fn into(self) -> BTreeSet<T> {
+        BTreeSet::<T>::from_iter(self.iter().cloned())
+    }
+}
+
 impl<'a, T: Ord + Clone> From<OrdSetOpsIter<'a, T>> for OrdListSet<T> {
     fn from(oso_iter: OrdSetOpsIter<T>) -> Self {
         let members: Vec<T> = oso_iter.cloned().collect();

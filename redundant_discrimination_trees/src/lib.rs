@@ -44,6 +44,7 @@ trait ChildMapOps<'a, E: ItemTraits + 'a> {
     fn get_child_keys(&self, child: &Rc<TreeNode<E>>) -> BTreeSet<Rc<E>>;
     fn get_child_and_keys(&self, key: &Rc<E>) -> Option<ChildAndKeys<E>>;
     fn get_children_and_keys(&self) -> BTreeSet<ChildAndKeysStruct<E>>;
+    fn get_intersection(&self, set: &OrdListSet<Rc<E>>) -> BTreeSet<Rc<E>>;
     fn insert_child<I: Iterator<Item = &'a Rc<E>>>(&mut self, iter: I, child: &Rc<TreeNode<E>>);
 }
 
@@ -90,6 +91,12 @@ impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
         }
 
         set
+    }
+
+    fn get_intersection(&self, set: &OrdListSet<Rc<E>>) -> BTreeSet<Rc<E>> {
+        let intersection =
+            BTreeSet::<Rc<E>>::from_iter((&set.oso_iter() & &self.oso_keys()).cloned());
+        intersection
     }
 
     fn insert_child<I: Iterator<Item = &'a Rc<E>>>(&mut self, iter: I, child: &Rc<TreeNode<E>>) {
@@ -194,7 +201,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         if !self.elements.is_subset(set) {
             false
         } else {
-            let mut mut_set = BTreeSet::<Rc<E>>::from_iter(set.iter().cloned());
+            let mut mut_set: BTreeSet<Rc<E>> = set.clone().into();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
@@ -209,9 +216,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
 
     fn is_recursive_real_path_compatible_with(&self, excerpt: &OrdListSet<Rc<E>>) -> bool {
         if self.is_real_path_compatible_with(excerpt) {
-            let mut keys = BTreeSet::<Rc<E>>::from_iter(
-                (&excerpt.oso_iter() - &self.elements.oso_iter()).cloned(),
-            );
+            let mut keys: BTreeSet<Rc<E>> = (excerpt - &self.elements).into();
             while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child.is_recursive_real_path_compatible_with(excerpt) {
@@ -230,7 +235,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         if !self.elements.is_subset(set) {
             false
         } else {
-            let mut mut_set = BTreeSet::<Rc<E>>::from_iter(set.iter().cloned());
+            let mut mut_set: BTreeSet<Rc<E>> = set.clone().into();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
@@ -252,9 +257,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         if &self.elements == excerpt {
             true
         } else if self.is_compatible_with(excerpt) {
-            let mut keys = BTreeSet::<Rc<E>>::from_iter(
-                (&excerpt.oso_iter() - &self.elements.oso_iter()).cloned(),
-            );
+            let mut keys: BTreeSet<Rc<E>> = (excerpt - &self.elements).into();
             while let Some(key) = keys.pop_first() {
                 if let Some((r_child, r_child_keys)) = self.get_r_child_and_keys(&key) {
                     if !r_child.is_recursive_compatible_with(excerpt) {
@@ -365,14 +368,7 @@ impl<E: ItemTraits> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys = {
-            let r_children = self.r_children.borrow();
-            //let r_oso_keys = r_children.oso_keys();
-            let keys = BTreeSet::<Rc<E>>::from_iter(
-                (&excerpt.oso_iter() & &r_children.oso_keys()).cloned(),
-            );
-            keys
-        };
+        let mut keys = self.r_children.borrow().get_intersection(excerpt);
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             let r_child_before = Rc::clone(&r_child);
@@ -422,13 +418,7 @@ impl<E: ItemTraits> TreeNode<E> {
         base_node: &Rc<Self>,
         changes: &mut BTreeSet<(Rc<Self>, Rc<Self>)>,
     ) {
-        let mut keys = {
-            let v_children = self.v_children.borrow();
-            let keys = BTreeSet::<Rc<E>>::from_iter(
-                (&excerpt.oso_iter() & &v_children.oso_keys()).cloned(),
-            );
-            keys
-        };
+        let mut keys = self.v_children.borrow().get_intersection(excerpt);
         while let Some(key) = keys.pop_first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(&key).unwrap();
             if excerpt.is_oso_superset(&v_child_keys) {
@@ -442,11 +432,7 @@ impl<E: ItemTraits> TreeNode<E> {
                 keys = &keys - &r_child_keys;
             }
         }
-        let mut keys = {
-            let r_children = self.r_children.borrow();
-            let keys = BTreeSet::from_iter((&excerpt.oso_iter() & &r_children.oso_keys()).cloned());
-            keys
-        };
+        let mut keys = self.r_children.borrow().get_intersection(excerpt);
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             r_child.reorganise_descendants_for_full_compatibility(excerpt, base_node, changes);
@@ -507,8 +493,7 @@ impl<E: ItemTraits> TreeNode<E> {
                     }
                 }
             }
-            let mut keys =
-                BTreeSet::<Rc<E>>::from_iter(keys.oso_intersection(&self.get_r_keys()).cloned());
+            let mut keys = self.r_children.borrow().get_intersection(&keys);
             while let Some(key) = keys.pop_first() {
                 let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
                 r_child.fix_v_links_for_pair(nodes);
@@ -564,15 +549,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             self.incr_insert_count();
         } else {
             // Get these keys before any new child so that we don't double up
-            let mut absorb_keys = {
-                let r_children = self.r_children.borrow();
-                let absorb_keys = BTreeSet::<Rc<E>>::from_iter(
-                    keys.oso_iter()
-                        .intersection(&r_children.oso_keys())
-                        .cloned(),
-                );
-                absorb_keys
-            };
+            let mut absorb_keys = self.r_children.borrow().get_intersection(&keys);
             let unused_keys = {
                 let r_children = self.r_children.borrow();
                 let v_children = self.v_children.borrow();
