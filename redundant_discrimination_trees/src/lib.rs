@@ -319,6 +319,18 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
     fn insert_v_child<I: Iterator<Item = &'a Rc<E>>>(&self, iter: I, v_child: &Rc<Self>) {
         self.v_children.borrow_mut().insert_child(iter, v_child);
     }
+
+    // Return the subset of 'keys' that isn't already a key to a child
+    fn get_unused_keys(&self, keys: &OrdListSet<Rc<E>>) -> BTreeSet<Rc<E>> {
+        let r_children = self.r_children.borrow();
+        let v_children = self.v_children.borrow();
+        let unused_keys = BTreeSet::<Rc<E>>::from_iter(
+            keys.oso_iter()
+                .difference(&r_children.oso_keys().union(&v_children.oso_keys()))
+                .cloned(),
+        );
+        unused_keys
+    }
 }
 
 impl<E: ItemTraits> TreeNode<E> {
@@ -550,16 +562,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
         } else {
             // Get these keys before any new child so that we don't double up
             let mut absorb_keys = self.r_children.borrow().get_intersection(&keys);
-            let unused_keys = {
-                let r_children = self.r_children.borrow();
-                let v_children = self.v_children.borrow();
-                let unused_keys = BTreeSet::<Rc<E>>::from_iter(
-                    keys.oso_iter()
-                        .difference(&r_children.oso_keys().union(&v_children.oso_keys()))
-                        .cloned(),
-                );
-                unused_keys
-            };
+            let unused_keys = self.get_unused_keys(&keys);
             if !unused_keys.is_empty() {
                 if let Some(new_node) = new_insert_is {
                     debug_assert_eq!(&new_node.elements, insertion);
