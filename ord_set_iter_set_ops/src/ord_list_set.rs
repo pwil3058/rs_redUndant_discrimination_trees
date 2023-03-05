@@ -53,7 +53,7 @@ impl<T: Ord> OrdListSet<T> {
 }
 
 impl<'a, T: 'a + Ord + Clone> SetOsoIter<'a, T> for OrdListSet<T> {
-    /// Return an set operations iterator over the members in the `OrdListSet` in ascending order.
+    /// Return a set operations iterator over the members in the `OrdListSet` in ascending order.
     fn oso_iter(&'a self) -> OrdSetOpsIter<'a, T> {
         OrdSetOpsIter::OrdListSet(OrdListSetIter {
             elements: &self.members,
@@ -154,6 +154,10 @@ impl<'a, T: 'a + Ord + Clone> OrdListSet<T> {
 
     pub fn get_subset(&self, range: impl RangeBounds<usize>) -> OrdListSet<T> {
         Self::from(self.items(range))
+    }
+
+    pub fn get_item_subset(&self, range: impl RangeBounds<T>) -> Result<OrdListSet<T>, Error> {
+        Ok(Self::from(self.item_items(range)?))
     }
 
     /// Returns a reference to the first element in the set, if any. This element is always the minimum of all elements in the set.
