@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 #ord_set_ops_iter = {path = "/home/peter/GitHub/rs_ord_set_ops_iter/ord_set_ops_iter"}
 ord_set_iter_set_ops = {path = "../ord_set_iter_set_ops"}
-#ord_list_set = {path = "../ord_list_set"}
+ord_list_set = {path = "../ord_list_set"}

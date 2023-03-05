@@ -11,9 +11,9 @@ use std::{
     marker::PhantomData,
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
-
-pub mod error;
-pub mod ord_list_set;
+//
+// pub mod error;
+// pub mod ord_list_set;
 
 /// Ordered Iterator over set operations on the contents of an ordered set.
 #[clonable]
