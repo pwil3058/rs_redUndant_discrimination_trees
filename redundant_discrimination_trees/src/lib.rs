@@ -95,7 +95,7 @@ impl<'a, E: ItemTraits + 'a> ChildMapOps<'a, E> for ChildMap<E> {
 
     fn get_intersection(&self, set: &OrdListSet<Rc<E>>) -> BTreeSet<Rc<E>> {
         let intersection =
-            BTreeSet::<Rc<E>>::from_iter((&set.oso_iter() & &self.oso_keys()).cloned());
+            BTreeSet::<Rc<E>>::from_iter(set.iter().intersection(self.oso_keys()).cloned());
         intersection
     }
 
@@ -204,7 +204,7 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             let mut mut_set: BTreeSet<Rc<E>> = set.clone().into();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
-                    if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
+                    if !r_child_keys.oso_iter().is_subset(set.iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
@@ -238,12 +238,12 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
             let mut mut_set: BTreeSet<Rc<E>> = set.clone().into();
             while let Some(key) = mut_set.pop_first() {
                 if let Some((_, r_child_keys)) = self.get_r_child_and_keys(&key) {
-                    if !r_child_keys.oso_iter().is_subset(&set.oso_iter()) {
+                    if !r_child_keys.oso_iter().is_subset(set.iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &r_child_keys;
                 } else if let Some((_, v_child_keys)) = self.get_v_child_and_keys(&key) {
-                    if !v_child_keys.oso_iter().is_subset(&set.oso_iter()) {
+                    if !v_child_keys.oso_iter().is_subset(set.iter()) {
                         return false;
                     }
                     mut_set = &mut_set - &v_child_keys;
@@ -325,8 +325,8 @@ impl<'a, E: 'a + ItemTraits> TreeNode<E> {
         let r_children = self.r_children.borrow();
         let v_children = self.v_children.borrow();
         let unused_keys = BTreeSet::<Rc<E>>::from_iter(
-            keys.oso_iter()
-                .difference(&r_children.oso_keys().union(&v_children.oso_keys()))
+            keys.iter()
+                .difference(r_children.oso_keys().union(v_children.oso_keys()))
                 .cloned(),
         );
         unused_keys
@@ -365,7 +365,7 @@ impl<E: ItemTraits> TreeNode<E> {
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(r_child.elements.difference(&new_node.elements), &r_child);
         self.insert_r_child(
-            excerpt.oso_iter().intersection(&r_child_keys.oso_iter()),
+            excerpt.iter().intersection(r_child_keys.oso_iter()),
             &new_node,
         );
         debug_assert!(new_node.is_real_path_compatible_with(excerpt));
@@ -384,7 +384,7 @@ impl<E: ItemTraits> TreeNode<E> {
         while let Some(key) = keys.pop_first() {
             let (r_child, r_child_keys) = self.get_r_child_and_keys(&key).unwrap();
             let r_child_before = Rc::clone(&r_child);
-            if !excerpt.oso_iter().is_superset(&r_child_keys.oso_iter()) {
+            if !excerpt.iter().is_superset(r_child_keys.oso_iter()) {
                 self.split(&key, excerpt);
                 let r_child_after = self.get_r_child(&key).unwrap();
                 r_child_after.fix_v_links_for_changes(changes);
@@ -416,10 +416,10 @@ impl<E: ItemTraits> TreeNode<E> {
         let new_node = Self::new_subset(elements, v_children);
         new_node.insert_v_child(v_child.elements.difference(&new_node.elements), &v_child);
         self.insert_r_child(
-            excerpt.oso_iter().intersection(&v_child_keys.oso_iter()),
+            excerpt.iter().intersection(v_child_keys.oso_iter()),
             &new_node,
         );
-        self.delete_v_children(excerpt.oso_iter().intersection(&v_child_keys.oso_iter()));
+        self.delete_v_children(excerpt.iter().intersection(v_child_keys.oso_iter()));
     }
 
     // Algorithm 6.7
@@ -433,7 +433,7 @@ impl<E: ItemTraits> TreeNode<E> {
         let mut keys = self.v_children.borrow().get_intersection(excerpt);
         while let Some(key) = keys.pop_first() {
             let (v_child, v_child_keys) = self.get_v_child_and_keys(&key).unwrap();
-            if excerpt.is_oso_superset(&v_child_keys) {
+            if excerpt.iter().is_superset(v_child_keys.oso_iter()) {
                 keys = &keys - &v_child_keys;
             } else {
                 self.interpose_for_virtual_compatibility(&key, excerpt);
@@ -515,15 +515,8 @@ impl<E: ItemTraits> TreeNode<E> {
     }
 
     fn is_disjoint_child_indices(&self, set: &OrdListSet<Rc<E>>) -> bool {
-        self.r_children
-            .borrow()
-            .oso_keys()
-            .is_disjoint(&set.oso_iter())
-            && self
-                .v_children
-                .borrow()
-                .oso_keys()
-                .is_disjoint(&set.oso_iter())
+        self.r_children.borrow().oso_keys().is_disjoint(set.iter())
+            && self.v_children.borrow().oso_keys().is_disjoint(set.iter())
     }
 
     fn merged_children(&self) -> RefCell<ChildMap<E>> {
@@ -600,7 +593,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             let mut partial_matches = BTreeSet::new();
             {
                 let r_children = self.r_children.borrow();
-                let mut r_query_iter = query.oso_iter().intersection(&r_children.oso_keys());
+                let mut r_query_iter = query.iter().intersection(r_children.oso_keys());
                 if let Some(key) = skip_after_key {
                     r_query_iter.advance_until(key);
                 }
@@ -619,7 +612,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                 }
             }
             let v_children = self.v_children.borrow();
-            let mut v_query_iter = query.oso_iter().intersection(&v_children.oso_keys());
+            let mut v_query_iter = query.iter().intersection(v_children.oso_keys());
             if let Some(key) = skip_after_key {
                 v_query_iter.advance_until(key);
             }
@@ -649,13 +642,13 @@ pub enum Class {
 }
 
 pub trait AnswerPublicFace<E: ItemTraits> {
-    fn elements(&self) -> OrdSetOpsIter<Rc<E>>;
+    fn elements(&self) -> OrdListSetIter<Rc<E>>;
     fn class(&self) -> Class;
 }
 
 impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
-    fn elements(&self) -> OrdSetOpsIter<Rc<E>> {
-        self.elements.oso_iter()
+    fn elements(&self) -> OrdListSetIter<Rc<E>> {
+        self.elements.iter()
     }
 
     fn class(&self) -> Class {
@@ -741,21 +734,21 @@ impl<E: ItemTraits> TreeNode<E> {
         let mut result = true;
         let mut r_keys = self.get_r_keys();
         let mut v_keys = self.get_v_keys();
-        if !r_keys.is_oso_disjoint(&self.elements) {
+        if !r_keys.oso_iter().is_disjoint(self.elements.iter()) {
             println!(
                 "FAIL: TreeNode: {:?} Real Keys {r_keys:?} overlap  elements",
                 self.elements,
             );
             result = false;
         };
-        if !v_keys.is_oso_disjoint(&self.elements) {
+        if !v_keys.oso_iter().is_disjoint(self.elements.iter()) {
             println!(
                 "FAIL: TreeNode: {:?} Virtual Keys {r_keys:?} overlap  elements",
                 self.elements,
             );
             result = false;
         };
-        if !r_keys.is_disjoint(&v_keys) {
+        if !r_keys.oso_iter().is_disjoint(v_keys.oso_iter()) {
             let overlap = &r_keys & &v_keys;
             println!("FAIL:  {self:?} real and virtual child keys overlap: {overlap:?}");
             result = false;
