@@ -345,6 +345,16 @@ impl<E: ItemTraits> TreeNode<E> {
         }
     }
 
+    fn to_ord_list_set_rc_e(&self, items: &[E]) -> OrdListSet<Rc<E>> {
+        OrdListSet::<Rc<E>>::from_iter(items.iter().map(|element| {
+            if let Some(key) = self.find_key(element) {
+                Rc::clone(&key)
+            } else {
+                Rc::new(element.clone())
+            }
+        }))
+    }
+
     // Algorithm: 6.2
     fn interpose_for_real_compatibility(&self, key: &Rc<E>, excerpt: &OrdListSet<Rc<E>>) {
         let (r_child, r_child_keys) = self.get_r_child_and_keys(key).unwrap();
@@ -534,6 +544,8 @@ impl<E: ItemTraits> TreeNode<E> {
 trait Engine<E: ItemTraits>: Sized {
     // Algorithm: 6.11
     fn absorb(&self, insertion: &OrdListSet<Rc<E>>, new_insert_is: &mut Option<Rc<TreeNode<E>>>);
+    // Algorithm: 6.13
+    fn complete_match_superset(&self, query: &OrdListSet<Rc<E>>) -> Option<Answer<E>>;
     // Algorithm 6.14
     #[allow(clippy::mutable_key_type)]
     fn partial_matches(
@@ -574,6 +586,22 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
             self.incr_subset_count();
         }
         debug_assert!(self.verify_tree(), "{self:?}.absorb({insertion:?})");
+    }
+
+    // Algorithm 6.13
+    fn complete_match_superset(&self, query: &OrdListSet<Rc<E>>) -> Option<Answer<E>> {
+        debug_assert!(self.elements.is_subset(query));
+        let mut matched_node = Rc::clone(self);
+        while let Some(key) = query.difference(&matched_node.elements.clone()).next() {
+            if let Some(r_child) = matched_node.get_r_child(key) {
+                matched_node = r_child;
+            } else if let Some(v_child) = matched_node.get_v_child(key) {
+                matched_node = v_child;
+            } else {
+                return None;
+            }
+        }
+        Some(matched_node)
     }
 
     // Algorithm 6.14
@@ -644,6 +672,7 @@ pub enum Class {
 pub trait AnswerPublicFace<E: ItemTraits> {
     fn elements(&self) -> OrdListSetIter<Rc<E>>;
     fn class(&self) -> Class;
+    fn complete_match(&self, item_set: &[E]) -> Option<Answer<E>>;
 }
 
 impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
@@ -662,6 +691,15 @@ impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
             Class::Subset
         } else {
             panic!("there's a bug somewhere")
+        }
+    }
+
+    fn complete_match(&self, item_set: &[E]) -> Option<Answer<E>> {
+        let query = self.to_ord_list_set_rc_e(item_set);
+        if query.is_superset(&self.elements) {
+            self.complete_match_superset(&query)
+        } else {
+            None
         }
     }
 }
@@ -702,19 +740,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     }
 
     pub fn complete_match(&self, query: OrdListSet<E>) -> Option<Answer<E>> {
-        let query = self.convert(query);
-        let mut matched_node = Rc::clone(&self.root);
-        // NB: even though root.elements is always empty we do this to get the right type of Iterator
-        while let Some(key) = query.difference(&matched_node.elements.clone()).next() {
-            if let Some(r_child) = matched_node.get_r_child(key) {
-                matched_node = r_child;
-            } else if let Some(v_child) = matched_node.get_v_child(key) {
-                matched_node = v_child;
-            } else {
-                return None;
-            }
-        }
-        Some(matched_node)
+        self.root.complete_match_superset(&self.convert(query))
     }
 
     #[allow(clippy::mutable_key_type)]
@@ -845,6 +871,14 @@ mod tests {
                 .unwrap()
                 .class(),
             Class::Both
+        );
+        assert_eq!(
+            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+                .unwrap()
+                .complete_match(&["a", "b", "c", "d"])
+                .unwrap()
+                .class(),
+            Class::Insertion
         );
         assert_eq!(
             rdt.partial_matches(OrdListSet::from(["a", "b", "c"])).len(),
