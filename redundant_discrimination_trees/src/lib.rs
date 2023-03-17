@@ -718,7 +718,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
 
     /// Convert a BTreeSet<E> to a BTreeSet<Rc<E>> using existing Rc<E>
     /// instances where available.
-    fn convert(&self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
+    fn convert(&self, raw_excerpt: &[E]) -> OrdListSet<Rc<E>> {
         OrdListSet::<Rc<E>>::from_iter(raw_excerpt.iter().map(|element| {
             if let Some(key) = self.root.find_key(element) {
                 Rc::clone(&key)
@@ -728,7 +728,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         }))
     }
 
-    pub fn insert(&mut self, raw_excerpt: OrdListSet<E>) -> OrdListSet<Rc<E>> {
+    pub fn insert(&mut self, raw_excerpt: &[E]) -> OrdListSet<Rc<E>> {
         let insertion = self.convert(raw_excerpt);
         self.root
             .reorganize_paths_for_compatibility(&insertion, &self.root);
@@ -739,12 +739,12 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
         insertion
     }
 
-    pub fn complete_match(&self, query: OrdListSet<E>) -> Option<Answer<E>> {
+    pub fn complete_match(&self, query: &[E]) -> Option<Answer<E>> {
         self.root.complete_match_superset(&self.convert(query))
     }
 
     #[allow(clippy::mutable_key_type)]
-    pub fn partial_matches(&self, query: OrdListSet<E>) -> BTreeSet<Answer<E>> {
+    pub fn partial_matches(&self, query: &[E]) -> BTreeSet<Answer<E>> {
         let query = self.convert(query);
         self.root.partial_matches(&query, None)
     }
@@ -833,110 +833,81 @@ mod tests {
     #[test]
     fn it_works() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
-        assert!(rdt
-            .complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-            .is_none());
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 0);
-        let _abcd = rdt.insert(OrdListSet::from(["a", "b", "c", "d"]));
+        assert!(rdt.complete_match(&["a", "b", "c", "d"]).is_none());
+        assert_eq!(rdt.partial_matches(&["a"]).len(), 0);
+        let _abcd = rdt.insert(&["a", "b", "c", "d"]);
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c", "d"]).unwrap().class(),
             Class::Insertion
         );
-        assert_eq!(
-            rdt.partial_matches(OrdListSet::from(["a", "b", "c", "d"]))
-                .len(),
-            1
-        );
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b", "c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["e"])).len(), 0);
+        assert_eq!(rdt.partial_matches(&["a", "b", "c", "d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["b"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["c"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a", "b"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["b", "c"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["c", "d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a", "d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["e"]).len(), 0);
 
-        let _abc = rdt.insert(OrdListSet::from(["a", "b", "c"]));
+        let _abc = rdt.insert(&["a", "b", "c"]);
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c", "d"]).unwrap().class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
+            rdt.complete_match(&["a", "b", "c"])
                 .unwrap()
                 .complete_match(&["a", "b", "c", "d"])
                 .unwrap()
                 .class(),
             Class::Insertion
         );
-        assert_eq!(
-            rdt.partial_matches(OrdListSet::from(["a", "b", "c"])).len(),
-            1
-        );
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "b"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["b", "c"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["c", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["a", "d"])).len(), 1);
-        assert_eq!(rdt.partial_matches(OrdListSet::from(["e"])).len(), 0);
+        assert_eq!(rdt.partial_matches(&["a", "b", "c"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["b"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["c"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a", "b"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["b", "c"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["c", "d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["a", "d"]).len(), 1);
+        assert_eq!(rdt.partial_matches(&["e"]).len(), 0);
 
-        let _abd = rdt.insert(OrdListSet::from(["a", "b", "d"]));
+        let _abd = rdt.insert(&["a", "b", "d"]);
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c", "d"]).unwrap().class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "d"]).unwrap().class(),
             Class::Both
         );
 
-        let _ad = rdt.insert(OrdListSet::from(["a", "d"]));
+        let _ad = rdt.insert(&["a", "d"]);
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c", "d"]).unwrap().class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "d"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Both
         );
     }
@@ -944,76 +915,56 @@ mod tests {
     #[test]
     fn it_works_in_reverse_order() {
         let mut rdt = RedundantDiscriminationTree::<&str>::new();
-        assert!(rdt.complete_match(OrdListSet::from(["a", "d"])).is_none());
-        let _ad = rdt.insert(OrdListSet::from(["a", "d"]));
+        assert!(rdt.complete_match(&["a", "d"]).is_none());
+        let _ad = rdt.insert(&["a", "d"]);
         assert!(rdt.verify_tree(), "a,d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Insertion
         );
 
-        let _abd = rdt.insert(OrdListSet::from(["a", "b", "d"]));
+        let _abd = rdt.insert(&["a", "b", "d"]);
         assert!(rdt.verify_tree(), "a,b, d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "d"]).unwrap().class(),
             Class::Insertion
         );
 
-        let _abc = rdt.insert(OrdListSet::from(["a", "b", "c"]));
+        let _abc = rdt.insert(&["a", "b", "c"]);
         assert!(rdt.verify_tree(), "a,b, c");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "d"]).unwrap().class(),
             Class::Insertion
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c"]).unwrap().class(),
             Class::Insertion
         );
 
-        let _abcd = rdt.insert(OrdListSet::from(["a", "b", "c", "d"]));
+        let _abcd = rdt.insert(&["a", "b", "c", "d"]);
         assert!(rdt.verify_tree(), "a,b, c, d");
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "d"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c"]).unwrap().class(),
             Class::Both
         );
         assert_eq!(
-            rdt.complete_match(OrdListSet::from(["a", "b", "c", "d"]))
-                .unwrap()
-                .class(),
+            rdt.complete_match(&["a", "b", "c", "d"]).unwrap().class(),
             Class::Insertion
         );
     }
