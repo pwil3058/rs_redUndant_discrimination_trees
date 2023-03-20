@@ -548,7 +548,7 @@ trait Engine<E: ItemTraits>: Sized {
     fn complete_match_superset(&self, query: &OrdListSet<Rc<E>>) -> Option<Answer<E>>;
     // Algorithm 6.14
     #[allow(clippy::mutable_key_type)]
-    fn partial_matches(
+    fn partial_matches_recursive(
         &self,
         query: &OrdListSet<Rc<E>>,
         skip_after_key: Option<&Rc<E>>,
@@ -606,7 +606,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
 
     // Algorithm 6.14
     #[allow(clippy::mutable_key_type)]
-    fn partial_matches(
+    fn partial_matches_recursive(
         &self,
         query: &OrdListSet<Rc<E>>,
         skip_after_key: Option<&Rc<E>>,
@@ -633,7 +633,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                         if &r_query_element == r_child.elements.intersection(query).next().unwrap()
                         {
                             partial_matches = &partial_matches
-                                | &r_child.partial_matches(query, Some(&r_query_element));
+                                | &r_child.partial_matches_recursive(query, Some(&r_query_element));
                         }
                         r_query_elements = &r_query_elements - &r_child_keys;
                     }
@@ -650,7 +650,7 @@ impl<E: ItemTraits> Engine<E> for Rc<TreeNode<E>> {
                     //if &v_query_element == v_child.elements.intersection(query).next().unwrap() {
                     if v_child.elements.contains(&v_query_element) {
                         partial_matches = &partial_matches
-                            | &v_child.partial_matches(query, Some(&v_query_element));
+                            | &v_child.partial_matches_recursive(query, Some(&v_query_element));
                     }
                     v_query_elements = &v_query_elements - &v_child_keys;
                 }
@@ -673,6 +673,7 @@ pub trait AnswerPublicFace<E: ItemTraits> {
     fn elements(&self) -> OrdListSetIter<Rc<E>>;
     fn class(&self) -> Class;
     fn complete_match(&self, item_set: &[E]) -> Option<Answer<E>>;
+    fn partial_matches(&self, query: &[E]) -> BTreeSet<Answer<E>>;
 }
 
 impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
@@ -701,6 +702,11 @@ impl<E: ItemTraits> AnswerPublicFace<E> for Answer<E> {
         } else {
             None
         }
+    }
+
+    fn partial_matches(&self, query: &[E]) -> BTreeSet<Answer<E>> {
+        let query = self.to_ord_list_set_rc_e(query);
+        self.partial_matches_recursive(&query, None)
     }
 }
 
@@ -746,7 +752,7 @@ impl<E: ItemTraits> RedundantDiscriminationTree<E> {
     #[allow(clippy::mutable_key_type)]
     pub fn partial_matches(&self, query: &[E]) -> BTreeSet<Answer<E>> {
         let query = self.convert(query);
-        self.root.partial_matches(&query, None)
+        self.root.partial_matches_recursive(&query, None)
     }
 
     pub fn verify_tree(&self) -> bool {
@@ -910,6 +916,13 @@ mod tests {
             rdt.complete_match(&["a", "d"]).unwrap().class(),
             Class::Both
         );
+        assert_eq!(
+            rdt.complete_match(&["a", "d"])
+                .unwrap()
+                .partial_matches(&["b"])
+                .len(),
+            1
+        )
     }
 
     #[test]
